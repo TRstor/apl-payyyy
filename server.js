@@ -16,14 +16,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Email transporter
 function createTransporter() {
+  const port = parseInt(process.env.SMTP_PORT || '465');
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
+    host: process.env.SMTP_HOST || 'mail.privateemail.com',
+    port,
+    secure: port === 465,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    tls: { rejectUnauthorized: true },
   });
 }
 
@@ -111,8 +113,12 @@ app.post('/api/send-payment-link', async (req, res) => {
     </html>
     `;
 
+    const fromName = process.env.SMTP_FROM_NAME || '';
+    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
+    const fromAddress = fromName ? `"${fromName}" <${fromEmail}>` : fromEmail;
+
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      from: fromAddress,
       to: customerEmail,
       subject: `رابط دفع: ${String(productName).slice(0, 100)}`,
       html: htmlEmail,
