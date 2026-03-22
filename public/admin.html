@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة تحكم المدير</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #0f0e17; color: #fff; min-height: 100vh; }
+    .navbar { background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1); padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    .navbar h2 { font-size: 18px; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .navbar .user-info { display: flex; align-items: center; gap: 16px; font-size: 14px; }
+    .navbar .user-info span { color: rgba(255,255,255,0.6); }
+    .btn-logout { background: rgba(231,76,60,0.2); border: 1px solid rgba(231,76,60,0.3); color: #e74c3c; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+    .main { max-width: 1200px; margin: 0 auto; padding: 32px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 32px; }
+    .stat-card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; }
+    .stat-card .label { color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 8px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; }
+    .stat-card .value.green { color: #2ecc71; }
+    .stat-card .value.blue { color: #667eea; }
+    .stat-card .value.yellow { color: #f1c40f; }
+    .stat-card .value.red { color: #e74c3c; }
+    .section { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+    .section h3 { font-size: 18px; margin-bottom: 20px; color: rgba(255,255,255,0.9); }
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tab { padding: 8px 20px; border-radius: 10px; cursor: pointer; font-size: 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); transition: all 0.3s; }
+    .tab.active { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border-color: transparent; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px 16px; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 14px; }
+    th { color: rgba(255,255,255,0.4); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+    td { color: rgba(255,255,255,0.8); }
+    .badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; }
+    .badge-paid { background: rgba(46,204,113,0.15); color: #2ecc71; }
+    .badge-pending { background: rgba(241,196,15,0.15); color: #f1c40f; }
+    .badge-failed { background: rgba(231,76,60,0.15); color: #e74c3c; }
+    .badge-admin { background: rgba(102,126,234,0.15); color: #667eea; }
+    .badge-merchant { background: rgba(46,204,113,0.15); color: #2ecc71; }
+    .btn { padding: 8px 20px; border: none; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.3s; }
+    .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+    .btn-danger { background: rgba(231,76,60,0.2); color: #e74c3c; border: 1px solid rgba(231,76,60,0.3); }
+    .btn:hover { transform: translateY(-1px); }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: #1a1a2e; border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; padding: 32px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
+    .modal h3 { margin-bottom: 24px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; font-size: 13px; color: rgba(255,255,255,0.7); }
+    .form-group input { width: 100%; padding: 12px 16px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #fff; font-size: 14px; outline: none; }
+    .form-group input:focus { border-color: #667eea; }
+    .form-group input::placeholder { color: rgba(255,255,255,0.3); }
+    .modal-actions { display: flex; gap: 12px; margin-top: 24px; }
+    .modal-actions .btn { flex: 1; padding: 12px; }
+    .empty { text-align: center; padding: 40px; color: rgba(255,255,255,0.3); }
+    .table-responsive { overflow-x: auto; }
+    @media (max-width: 768px) { .main { padding: 16px; } .navbar { padding: 12px 16px; } }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <h2>💳 APL Pay — المدير</h2>
+    <div class="user-info">
+      <span id="userEmail"></span>
+      <button class="btn-logout" onclick="logout()">خروج</button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="label">إجمالي المبيعات</div>
+        <div class="value green" id="totalRevenue">0.00 ر.س</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">عدد المعاملات</div>
+        <div class="value blue" id="totalTx">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">بانتظار الدفع</div>
+        <div class="value yellow" id="pendingTx">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">التجار</div>
+        <div class="value blue" id="totalMerchants">0</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('transactions')">المعاملات</div>
+      <div class="tab" onclick="showTab('merchants')">التجار</div>
+    </div>
+
+    <!-- Transactions -->
+    <div class="section" id="transactionsSection">
+      <h3>📋 جميع المعاملات</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr><th>التاريخ</th><th>التاجر</th><th>العميل</th><th>المنتج</th><th>المبلغ</th><th>الحالة</th></tr>
+          </thead>
+          <tbody id="txBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="txEmpty" style="display:none;">لا توجد معاملات</div>
+    </div>
+
+    <!-- Merchants -->
+    <div class="section" id="merchantsSection" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <h3>👥 التجار</h3>
+        <button class="btn btn-primary" onclick="showAddMerchant()">+ إضافة تاجر</button>
+      </div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr><th>الاسم</th><th>البريد</th><th>رصيد المحفظة</th><th>عدد المعاملات</th><th>المنشأ</th><th>إجراءات</th></tr>
+          </thead>
+          <tbody id="merchantsBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="merchantsEmpty" style="display:none;">لا يوجد تجار</div>
+    </div>
+  </div>
+
+  <!-- Add Merchant Modal -->
+  <div class="modal-overlay" id="addMerchantModal">
+    <div class="modal">
+      <h3>إضافة تاجر جديد</h3>
+      <form id="addMerchantForm">
+        <div class="form-group">
+          <label>اسم التاجر</label>
+          <input type="text" id="mName" placeholder="اسم النشاط التجاري" required>
+        </div>
+        <div class="form-group">
+          <label>البريد الإلكتروني</label>
+          <input type="email" id="mEmail" placeholder="merchant@email.com" dir="ltr" required>
+        </div>
+        <div class="form-group">
+          <label>كلمة المرور</label>
+          <input type="password" id="mPassword" placeholder="كلمة مرور قوية" dir="ltr" required minlength="6">
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary">إضافة</button>
+          <button type="button" class="btn btn-danger" onclick="closeModal('addMerchantModal')">إلغاء</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    if (!token || !user || user.role !== 'admin') {
+      window.location.href = '/login.html';
+    }
+    document.getElementById('userEmail').textContent = user?.email || '';
+
+    function authHeaders() { return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }; }
+
+    function showTab(tab) {
+      document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (tab === 'transactions' && i === 0) || (tab === 'merchants' && i === 1)));
+      document.getElementById('transactionsSection').style.display = tab === 'transactions' ? '' : 'none';
+      document.getElementById('merchantsSection').style.display = tab === 'merchants' ? '' : 'none';
+    }
+
+    function showAddMerchant() { document.getElementById('addMerchantModal').classList.add('show'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+    function logout() { localStorage.clear(); window.location.href = '/login.html'; }
+
+    function statusBadge(s) {
+      if (s === 'paid') return '<span class="badge badge-paid">مدفوع ✓</span>';
+      if (s === 'failed') return '<span class="badge badge-failed">فشل ✗</span>';
+      return '<span class="badge badge-pending">بانتظار</span>';
+    }
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    async function loadData() {
+      try {
+        const [txRes, mRes] = await Promise.all([
+          fetch('/api/admin/payments', { headers: authHeaders() }),
+          fetch('/api/admin/merchants', { headers: authHeaders() })
+        ]);
+        const payments = await txRes.json();
+        const merchants = await mRes.json();
+
+        // Stats
+        const paid = payments.filter(p => p.status === 'paid');
+        const pending = payments.filter(p => p.status === 'pending');
+        document.getElementById('totalRevenue').textContent = paid.reduce((s, p) => s + p.price, 0).toFixed(2) + ' ر.س';
+        document.getElementById('totalTx').textContent = payments.length;
+        document.getElementById('pendingTx').textContent = pending.length;
+        document.getElementById('totalMerchants').textContent = merchants.length;
+
+        // Transactions
+        const txBody = document.getElementById('txBody');
+        if (payments.length === 0) {
+          txBody.innerHTML = '';
+          document.getElementById('txEmpty').style.display = '';
+        } else {
+          document.getElementById('txEmpty').style.display = 'none';
+          txBody.innerHTML = payments.map(p => `<tr>
+            <td>${new Date(p.createdAt).toLocaleString('ar-SA')}</td>
+            <td>${esc(p.merchantName || '—')}</td>
+            <td>${esc(p.customerName)}<br><small style="color:rgba(255,255,255,0.4)">${esc(p.customerEmail)}</small></td>
+            <td>${esc(p.productName)}</td>
+            <td style="font-weight:600;color:#667eea">${Number(p.price).toFixed(2)}</td>
+            <td>${statusBadge(p.status)}</td>
+          </tr>`).join('');
+        }
+
+        // Merchants
+        const mBody = document.getElementById('merchantsBody');
+        if (merchants.length === 0) {
+          mBody.innerHTML = '';
+          document.getElementById('merchantsEmpty').style.display = '';
+        } else {
+          document.getElementById('merchantsEmpty').style.display = 'none';
+          mBody.innerHTML = merchants.map(m => `<tr>
+            <td>${esc(m.name)}</td>
+            <td dir="ltr" style="text-align:right">${esc(m.email)}</td>
+            <td style="font-weight:600;color:#2ecc71">${Number(m.walletBalance).toFixed(2)} ر.س</td>
+            <td>${m.paymentsCount || 0}</td>
+            <td>${new Date(m.createdAt).toLocaleDateString('ar-SA')}</td>
+            <td><button class="btn btn-danger" onclick="deleteMerchant('${m.id}')" style="padding:4px 12px;font-size:12px;">حذف</button></td>
+          </tr>`).join('');
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    document.getElementById('addMerchantForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('mName').value.trim();
+      const email = document.getElementById('mEmail').value.trim();
+      const password = document.getElementById('mPassword').value;
+      const res = await fetch('/api/admin/merchants', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ name, email, password })
+      });
+      if (res.ok) {
+        closeModal('addMerchantModal');
+        document.getElementById('addMerchantForm').reset();
+        loadData();
+      } else {
+        const d = await res.json();
+        alert(d.error || 'خطأ');
+      }
+    });
+
+    async function deleteMerchant(id) {
+      if (!confirm('هل تريد حذف هذا التاجر؟')) return;
+      await fetch('/api/admin/merchants/' + id, { method: 'DELETE', headers: authHeaders() });
+      loadData();
+    }
+
+    loadData();
+    setInterval(loadData, 15000);
+  </script>
+</body>
+</html>
