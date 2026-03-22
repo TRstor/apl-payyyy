@@ -14,6 +14,7 @@
       align-items: center;
       justify-content: center;
       color: #fff;
+      padding: 20px;
     }
     .container {
       background: rgba(255,255,255,0.07);
@@ -22,203 +23,224 @@
       border-radius: 24px;
       padding: 48px 40px;
       width: 100%;
-      max-width: 480px;
+      max-width: 520px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.4);
       text-align: center;
     }
-    .icon {
-      width: 80px;
-      height: 80px;
-      background: linear-gradient(135deg, #667eea, #764ba2);
+
+    /* Header icon */
+    .header-icon {
+      width: 80px; height: 80px;
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       margin: 0 auto 24px;
       font-size: 36px;
     }
-    h1 {
-      font-size: 24px;
-      margin-bottom: 8px;
-    }
-    .subtitle {
-      color: rgba(255,255,255,0.5);
-      font-size: 14px;
-      margin-bottom: 32px;
-    }
-    .details {
+    .header-icon.pay   { background: linear-gradient(135deg, #667eea, #764ba2); }
+    .header-icon.ok    { background: rgba(46,204,113,0.15); border: 3px solid #2ecc71; animation: popIn 0.5s ease; }
+    .header-icon.fail  { background: rgba(231,76,60,0.15); border: 3px solid #e74c3c; }
+    .header-icon.err   { background: rgba(241,196,15,0.15); border: 3px solid #f1c40f; }
+
+    @keyframes popIn { from{transform:scale(0)} to{transform:scale(1)} }
+
+    h1 { font-size: 22px; margin-bottom: 6px; }
+    .sub { color: rgba(255,255,255,0.5); font-size: 14px; margin-bottom: 28px; line-height: 1.5; }
+
+    /* Info card */
+    .info-card {
       background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
       border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 32px;
+      padding: 20px 24px;
+      margin-bottom: 28px;
       text-align: right;
     }
-    .detail-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+    .info-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
     }
-    .detail-row:last-child { border-bottom: none; }
-    .detail-label {
-      color: rgba(255,255,255,0.5);
-      font-size: 14px;
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: rgba(255,255,255,0.45); font-size: 13px; }
+    .info-value { color: #fff; font-weight: 600; font-size: 14px; max-width: 60%; word-break: break-all; text-align: left; }
+    .info-value.email { color: rgba(255,255,255,0.7); font-weight: 400; direction: ltr; }
+    .info-row.total { margin-top: 6px; padding-top: 14px; border-top: 2px solid rgba(102,126,234,0.3); }
+    .info-row.total .info-value { font-size: 24px; color: #667eea; }
+
+    /* Buttons */
+    .btn {
+      width: 100%; padding: 16px; border: none; border-radius: 14px;
+      font-size: 17px; font-weight: 700; cursor: pointer;
+      transition: all 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     }
-    .detail-value {
-      color: #fff;
-      font-weight: 600;
-      font-size: 15px;
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-green { background: linear-gradient(135deg, #2ecc71, #27ae60); color: #fff; }
+    .btn-purple { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; margin-top: 12px; }
+    .btn-outline { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); margin-top: 12px; font-size: 14px; font-weight: 500; padding: 12px; }
+
+    .secure { margin-top: 20px; font-size: 12px; color: rgba(255,255,255,0.35); }
+
+    /* Status badge */
+    .status-badge {
+      display: inline-block; padding: 6px 16px; border-radius: 20px;
+      font-size: 13px; font-weight: 600; margin-bottom: 24px;
     }
-    .total-row {
-      margin-top: 8px;
-      padding-top: 16px !important;
-      border-top: 2px solid rgba(102,126,234,0.3) !important;
-    }
-    .total-row .detail-value {
-      font-size: 22px;
-      color: #667eea;
-    }
-    .pay-btn {
-      width: 100%;
-      padding: 18px;
-      background: linear-gradient(135deg, #2ecc71, #27ae60);
-      border: none;
-      border-radius: 14px;
-      color: #fff;
-      font-size: 18px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.3s;
-    }
-    .pay-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(46,204,113,0.4);
-    }
-    .pay-btn:active { transform: translateY(0); }
-    .secure-note {
-      margin-top: 20px;
-      font-size: 12px;
-      color: rgba(255,255,255,0.4);
-    }
-    .success-container {
-      display: none;
-    }
-    .success-icon {
-      width: 100px;
-      height: 100px;
-      background: rgba(46,204,113,0.15);
-      border: 3px solid #2ecc71;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 24px;
-      font-size: 48px;
-      animation: scaleIn 0.5s ease;
-    }
-    @keyframes scaleIn {
-      from { transform: scale(0); }
-      to { transform: scale(1); }
-    }
-    .error-container { display: none; text-align: center; }
-    .error-icon {
-      font-size: 60px;
-      margin-bottom: 16px;
-    }
-    .loading { text-align: center; padding: 40px; }
-    .loading .spinner {
-      width: 40px;
-      height: 40px;
-      border: 3px solid rgba(255,255,255,0.15);
+    .badge-paid { background: rgba(46,204,113,0.15); color: #2ecc71; }
+    .badge-failed { background: rgba(231,76,60,0.15); color: #e74c3c; }
+
+    /* Loading */
+    .loading { padding: 60px 0; }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid rgba(255,255,255,0.12);
       border-top-color: #667eea;
       border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto 16px;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 18px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    .state { display: none; }
+    .state.active { display: block; }
+
     @media (max-width: 520px) {
-      .container { margin: 16px; padding: 32px 24px; }
+      .container { padding: 32px 24px; }
+      .info-row.total .info-value { font-size: 20px; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <!-- Loading State -->
-    <div id="loadingState" class="loading">
-      <div class="spinner"></div>
-      <p>جاري تحميل بيانات الدفع...</p>
+
+    <!-- ====== Loading ====== -->
+    <div id="stateLoading" class="state active">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p style="color:rgba(255,255,255,0.5)">جاري تحميل بيانات الدفع...</p>
+      </div>
     </div>
 
-    <!-- Payment Details -->
-    <div id="paymentState" style="display:none;">
-      <div class="icon">💳</div>
+    <!-- ====== Pending: Show details + Pay button ====== -->
+    <div id="statePending" class="state">
+      <div class="header-icon pay">💳</div>
       <h1>إتمام الدفع</h1>
-      <p class="subtitle">أنت على وشك إتمام عملية الدفع</p>
+      <p class="sub">مرحباً <strong id="pName"></strong>، يرجى مراجعة التفاصيل ثم الضغط على زر الدفع</p>
 
-      <div class="details">
-        <div class="detail-row">
-          <span class="detail-value" id="dProductName"></span>
-          <span class="detail-label">المنتج</span>
+      <div class="info-card">
+        <div class="info-row">
+          <span class="info-value" id="pProduct"></span>
+          <span class="info-label">المنتج</span>
         </div>
-        <div class="detail-row">
-          <span class="detail-value" id="dCustomerName"></span>
-          <span class="detail-label">العميل</span>
+        <div class="info-row">
+          <span class="info-value" id="pCustomer"></span>
+          <span class="info-label">العميل</span>
         </div>
-        <div class="detail-row total-row">
-          <span class="detail-value" id="dPrice"></span>
-          <span class="detail-label">المبلغ المطلوب</span>
+        <div class="info-row">
+          <span class="info-value email" id="pEmail"></span>
+          <span class="info-label">البريد</span>
+        </div>
+        <div class="info-row total">
+          <span class="info-value" id="pPrice"></span>
+          <span class="info-label">المبلغ</span>
         </div>
       </div>
 
-      <button class="pay-btn" id="payBtn" onclick="confirmPayment()">
+      <button class="btn btn-green" id="payBtn" onclick="goToPay()">
         ادفع الآن ✓
       </button>
-
-      <p class="secure-note">🔒 عملية الدفع مؤمنة بالكامل</p>
+      <p class="secure">🔒 سيتم تحويلك لبوابة الدفع الآمنة</p>
     </div>
 
-    <!-- Success State -->
-    <div id="successState" class="success-container">
-      <div class="success-icon">✓</div>
+    <!-- ====== Paid Successfully ====== -->
+    <div id="statePaid" class="state">
+      <div class="header-icon ok">✓</div>
       <h1>تم الدفع بنجاح!</h1>
-      <p class="subtitle">شكراً لك، تمت عملية الدفع بنجاح</p>
-      <div class="details">
-        <div class="detail-row">
-          <span class="detail-value" id="sProductName"></span>
-          <span class="detail-label">المنتج</span>
+      <span class="status-badge badge-paid">✓ مدفوع</span>
+      <p class="sub">شكراً لك <strong id="sName"></strong>، تمت عملية الدفع بنجاح</p>
+
+      <div class="info-card">
+        <div class="info-row">
+          <span class="info-value" id="sProduct"></span>
+          <span class="info-label">المنتج</span>
         </div>
-        <div class="detail-row">
-          <span class="detail-value" id="sPrice"></span>
-          <span class="detail-label">المبلغ المدفوع</span>
+        <div class="info-row">
+          <span class="info-value" id="sCustomer"></span>
+          <span class="info-label">العميل</span>
+        </div>
+        <div class="info-row">
+          <span class="info-value email" id="sEmail"></span>
+          <span class="info-label">البريد</span>
+        </div>
+        <div class="info-row total">
+          <span class="info-value" id="sPrice"></span>
+          <span class="info-label">المبلغ المدفوع</span>
         </div>
       </div>
     </div>
 
-    <!-- Error State -->
-    <div id="errorState" class="error-container">
-      <div class="error-icon">⚠️</div>
-      <h1>رابط غير صالح</h1>
-      <p class="subtitle" id="errorMsg">هذا الرابط غير صالح أو منتهي الصلاحية</p>
+    <!-- ====== Failed: show retry ====== -->
+    <div id="stateFailed" class="state">
+      <div class="header-icon fail">✗</div>
+      <h1>فشلت عملية الدفع</h1>
+      <span class="status-badge badge-failed">✗ فشل</span>
+      <p class="sub">عذراً <strong id="fName"></strong>، لم تتم عملية الدفع. يمكنك المحاولة مرة أخرى.</p>
+
+      <div class="info-card">
+        <div class="info-row">
+          <span class="info-value" id="fProduct"></span>
+          <span class="info-label">المنتج</span>
+        </div>
+        <div class="info-row">
+          <span class="info-value" id="fCustomer"></span>
+          <span class="info-label">العميل</span>
+        </div>
+        <div class="info-row">
+          <span class="info-value email" id="fEmail"></span>
+          <span class="info-label">البريد</span>
+        </div>
+        <div class="info-row total">
+          <span class="info-value" id="fPrice"></span>
+          <span class="info-label">المبلغ</span>
+        </div>
+      </div>
+
+      <button class="btn btn-purple" id="retryBtn" onclick="goToPay()">
+        إعادة المحاولة 🔄
+      </button>
     </div>
 
-    <!-- Failed State -->
-    <div id="failedState" class="error-container">
-      <div class="error-icon">❌</div>
-      <h1>فشلت عملية الدفع</h1>
-      <p class="subtitle">لم تتم عملية الدفع. يرجى المحاولة مرة أخرى.</p>
-      <button class="pay-btn" onclick="location.reload()" style="margin-top:24px;">إعادة المحاولة</button>
+    <!-- ====== Error / Not found ====== -->
+    <div id="stateError" class="state">
+      <div class="header-icon err">⚠️</div>
+      <h1>رابط غير صالح</h1>
+      <p class="sub">هذا الرابط غير صالح أو منتهي الصلاحية</p>
     </div>
+
   </div>
 
   <script>
     let paymentData = null;
-
-    // Get payment ID from URL
     const pathParts = window.location.pathname.split('/');
     const paymentId = pathParts[pathParts.length - 1];
 
-    // Load payment details
+    function show(stateId) {
+      document.querySelectorAll('.state').forEach(s => s.classList.remove('active'));
+      document.getElementById(stateId).classList.add('active');
+    }
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    function fillDetails(prefix, data) {
+      document.getElementById(prefix + 'Product').textContent = data.productName;
+      document.getElementById(prefix + 'Customer').textContent = data.customerName;
+      document.getElementById(prefix + 'Email').textContent = data.customerEmail;
+      document.getElementById(prefix + 'Price').textContent = Number(data.price).toFixed(2) + ' ر.س';
+      const nameEl = document.getElementById(prefix + 'Name');
+      if (nameEl) nameEl.textContent = data.customerName;
+    }
+
     async function loadPayment() {
       try {
         const res = await fetch('/api/payment/' + encodeURIComponent(paymentId));
@@ -226,74 +248,76 @@
 
         paymentData = await res.json();
 
-        // Auto-redirect to EdfaPay if available
-        if (paymentData.edfaRedirectUrl && paymentData.status === 'pending') {
-          window.location.href = paymentData.edfaRedirectUrl;
-          return;
-        }
-
         if (paymentData.status === 'paid') {
-          showSuccess();
+          fillDetails('s', paymentData);
+          show('statePaid');
           return;
         }
 
         if (paymentData.status === 'failed') {
-          document.getElementById('loadingState').style.display = 'none';
-          document.getElementById('failedState').style.display = 'block';
+          fillDetails('f', paymentData);
+          show('stateFailed');
           return;
         }
 
-        document.getElementById('dProductName').textContent = paymentData.productName;
-        document.getElementById('dCustomerName').textContent = paymentData.customerName;
-        document.getElementById('dPrice').textContent = Number(paymentData.price).toFixed(2) + ' ر.س';
+        // Pending
+        fillDetails('p', paymentData);
+        show('statePending');
 
-        document.getElementById('loadingState').style.display = 'none';
-        document.getElementById('paymentState').style.display = 'block';
       } catch (e) {
-        document.getElementById('loadingState').style.display = 'none';
-        document.getElementById('errorState').style.display = 'block';
+        show('stateError');
       }
     }
 
-    async function confirmPayment() {
-      const btn = document.getElementById('payBtn');
-      btn.disabled = true;
-      btn.textContent = 'جاري المعالجة...';
+    function goToPay() {
+      const btn = document.getElementById('payBtn') || document.getElementById('retryBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'جاري التحويل...'; }
 
-      try {
-        const res = await fetch('/api/payment/' + encodeURIComponent(paymentId) + '/pay', {
-          method: 'POST'
-        });
-
-        const data = await res.json();
-
-        // If EdfaPay redirect URL returned, redirect to it
-        if (data.redirect) {
-          window.location.href = data.redirect;
-          return;
-        }
-
-        if (res.ok && data.success) {
-          showSuccess();
-        } else {
-          btn.disabled = false;
-          btn.textContent = 'ادفع الآن ✓';
-        }
-      } catch (e) {
-        btn.disabled = false;
-        btn.textContent = 'ادفع الآن ✓';
+      if (paymentData && paymentData.edfaRedirectUrl) {
+        window.location.href = paymentData.edfaRedirectUrl;
+      } else {
+        // Fallback: call pay endpoint
+        fetch('/api/payment/' + encodeURIComponent(paymentId) + '/pay', { method: 'POST' })
+          .then(r => r.json())
+          .then(data => {
+            if (data.redirect) {
+              window.location.href = data.redirect;
+            } else if (data.success) {
+              paymentData.status = 'paid';
+              fillDetails('s', paymentData);
+              show('statePaid');
+            } else {
+              if (btn) { btn.disabled = false; btn.textContent = 'ادفع الآن ✓'; }
+            }
+          })
+          .catch(() => {
+            if (btn) { btn.disabled = false; btn.textContent = 'ادفع الآن ✓'; }
+          });
       }
     }
 
-    function showSuccess() {
-      document.getElementById('loadingState').style.display = 'none';
-      document.getElementById('paymentState').style.display = 'none';
-      document.getElementById('successState').style.display = 'block';
-      document.getElementById('sProductName').textContent = paymentData.productName;
-      document.getElementById('sPrice').textContent = Number(paymentData.price).toFixed(2) + ' ر.س';
+    // Auto-refresh status if pending (check every 5s if user paid in another tab)
+    function pollStatus() {
+      if (!paymentData || paymentData.status !== 'pending') return;
+      setInterval(async () => {
+        try {
+          const res = await fetch('/api/payment/' + encodeURIComponent(paymentId));
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.status === 'paid') {
+            paymentData = data;
+            fillDetails('s', paymentData);
+            show('statePaid');
+          } else if (data.status === 'failed') {
+            paymentData = data;
+            fillDetails('f', paymentData);
+            show('stateFailed');
+          }
+        } catch(e) {}
+      }, 5000);
     }
 
-    loadPayment();
+    loadPayment().then(pollStatus);
   </script>
 </body>
 </html>

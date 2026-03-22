@@ -470,6 +470,7 @@ app.get('/api/payment/:id', (req, res) => {
   res.json({
     productName: payment.productName,
     customerName: payment.customerName,
+    customerEmail: payment.customerEmail,
     price: payment.price,
     status: payment.status,
     edfaRedirectUrl: payment.edfaRedirectUrl || null,
@@ -539,12 +540,8 @@ app.all('/api/edfa/callback-3ds/:id', (req, res) => {
   res.redirect(`${baseUrl}/pay/${payment.id}`);
 });
 
-// Serve payment page
+// Serve payment page (always show intermediate page, no auto-redirect)
 app.get('/pay/:id', (req, res) => {
-  const payment = payments.get(req.params.id);
-  if (payment && payment.edfaRedirectUrl && payment.status === 'pending') {
-    return res.redirect(payment.edfaRedirectUrl);
-  }
   res.sendFile(path.join(__dirname, 'public', 'pay.html'));
 });
 
