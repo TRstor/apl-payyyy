@@ -19,3 +19,13 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      - key: SMTP_FROM_NAME
+        sync: false
+      - key: EDFA_MERCHANT_ID
+        sync: false
+      - key: EDFA_MERCHANT_PASSWORD
+        sync: false
+      - key: EDFA_CURRENCY
+        sync: false
+      - key: EDFA_COUNTRY
+        sync: false

@@ -201,6 +201,14 @@
       <h1>رابط غير صالح</h1>
       <p class="subtitle" id="errorMsg">هذا الرابط غير صالح أو منتهي الصلاحية</p>
     </div>
+
+    <!-- Failed State -->
+    <div id="failedState" class="error-container">
+      <div class="error-icon">❌</div>
+      <h1>فشلت عملية الدفع</h1>
+      <p class="subtitle">لم تتم عملية الدفع. يرجى المحاولة مرة أخرى.</p>
+      <button class="pay-btn" onclick="location.reload()" style="margin-top:24px;">إعادة المحاولة</button>
+    </div>
   </div>
 
   <script>
@@ -220,6 +228,12 @@
 
         if (paymentData.status === 'paid') {
           showSuccess();
+          return;
+        }
+
+        if (paymentData.status === 'failed') {
+          document.getElementById('loadingState').style.display = 'none';
+          document.getElementById('failedState').style.display = 'block';
           return;
         }
 
@@ -245,12 +259,19 @@
           method: 'POST'
         });
 
-        if (res.ok) {
+        const data = await res.json();
+
+        // If EdfaPay redirect URL returned, redirect to it
+        if (data.redirect) {
+          window.location.href = data.redirect;
+          return;
+        }
+
+        if (res.ok && data.success) {
           showSuccess();
         } else {
           btn.disabled = false;
           btn.textContent = 'ادفع الآن ✓';
-          // Could show error
         }
       } catch (e) {
         btn.disabled = false;

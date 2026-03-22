@@ -180,6 +180,10 @@
       background: rgba(46,204,113,0.15);
       color: #2ecc71;
     }
+    .status-failed {
+      background: rgba(231,76,60,0.15);
+      color: #e74c3c;
+    }
     @media (max-width: 560px) {
       .container { margin: 16px; padding: 32px 24px; }
     }
@@ -201,6 +205,11 @@
       <div class="form-group">
         <label>البريد الإلكتروني للعميل</label>
         <input type="email" id="customerEmail" placeholder="example@email.com" dir="ltr" required>
+      </div>
+
+      <div class="form-group">
+        <label>رقم جوال العميل</label>
+        <input type="tel" id="customerPhone" placeholder="966500000000" dir="ltr">
       </div>
 
       <div class="form-group">
@@ -244,6 +253,7 @@
 
       const customerName = document.getElementById('customerName').value.trim();
       const customerEmail = document.getElementById('customerEmail').value.trim();
+      const customerPhone = document.getElementById('customerPhone').value.trim();
       const productName = document.getElementById('productName').value.trim();
       const price = parseFloat(document.getElementById('price').value);
 
@@ -258,14 +268,18 @@
         const res = await fetch('/api/send-payment-link', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customerName, customerEmail, productName, price })
+          body: JSON.stringify({ customerName, customerEmail, customerPhone, productName, price })
         });
 
         const data = await res.json();
 
         if (res.ok) {
+          let msg = '✅ تم إرسال رابط الدفع بنجاح إلى ' + customerEmail;
+          if (data.emailWarning) {
+            msg += '\n⚠️ ' + data.emailWarning;
+          }
           alert.className = 'alert success';
-          alert.textContent = '✅ تم إرسال رابط الدفع بنجاح إلى ' + customerEmail;
+          alert.textContent = msg;
           form.reset();
           loadHistory();
         } else {
@@ -300,8 +314,8 @@
             </div>
             <div style="text-align:left;">
               <div class="price">${Number(p.price).toFixed(2)} ر.س</div>
-              <span class="status-badge ${p.status === 'paid' ? 'status-paid' : 'status-pending'}">
-                ${p.status === 'paid' ? 'مدفوع ✓' : 'بانتظار الدفع'}
+              <span class="status-badge ${p.status === 'paid' ? 'status-paid' : p.status === 'failed' ? 'status-failed' : 'status-pending'}">
+                ${p.status === 'paid' ? 'مدفوع ✓' : p.status === 'failed' ? 'فشل ✗' : 'بانتظار الدفع'}
               </span>
             </div>
           </div>

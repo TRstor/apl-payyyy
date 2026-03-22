@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 
@@ -12,6 +13,7 @@ const payments = new Map();
 
 // Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Email transporter
@@ -29,11 +31,70 @@ function createTransporter() {
   });
 }
 
+// --- EdfaPay Hash Generation ---
+function generateEdfaHash(orderId, orderAmount, orderCurrency, orderDescription) {
+  const merchantPass = process.env.EDFA_MERCHANT_PASSWORD;
+  const raw = (orderId + orderAmount + orderCurrency + orderDescription + merchantPass).toUpperCase();
+  const md5 = crypto.createHash('md5').update(raw).digest('hex');
+  const sha1 = crypto.createHash('sha1').update(md5).digest('hex');
+  return sha1;
+}
+
+// --- EdfaPay: Initiate Payment ---
+async function initiateEdfaPayment(payment, payerIp) {
+  const merchantId = process.env.EDFA_MERCHANT_ID;
+  const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+
+  const orderId = payment.id;
+  const orderAmount = Number(payment.price).toFixed(2);
+  const orderCurrency = process.env.EDFA_CURRENCY || 'SAR';
+  const orderDescription = payment.productName;
+
+  const hash = generateEdfaHash(orderId, orderAmount, orderCurrency, orderDescription);
+
+  // Split customer name into first/last
+  const nameParts = payment.customerName.trim().split(/\s+/);
+  const firstName = nameParts[0] || 'Customer';
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'N/A';
+
+  // Build form data
+  const formData = new URLSearchParams();
+  formData.append('action', 'SALE');
+  formData.append('edfa_merchant_id', merchantId);
+  formData.append('order_id', orderId);
+  formData.append('order_amount', orderAmount);
+  formData.append('order_currency', orderCurrency);
+  formData.append('order_description', orderDescription);
+  formData.append('req_token', 'N');
+  formData.append('payer_first_name', firstName);
+  formData.append('payer_last_name', lastName);
+  formData.append('payer_address', payment.customerEmail);
+  formData.append('payer_country', process.env.EDFA_COUNTRY || 'SA');
+  formData.append('payer_city', process.env.EDFA_CITY || 'Riyadh');
+  formData.append('payer_zip', process.env.EDFA_ZIP || '12221');
+  formData.append('payer_email', payment.customerEmail);
+  formData.append('payer_phone', payment.customerPhone || '966500000000');
+  formData.append('payer_ip', payerIp || '127.0.0.1');
+  formData.append('term_url_3ds', `${baseUrl}/api/edfa/callback-3ds/${orderId}`);
+  formData.append('auth', 'N');
+  formData.append('recurring_init', 'N');
+  formData.append('hash', hash);
+
+  const res = await fetch('https://api.edfapay.com/payment/initiate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: formData.toString(),
+  });
+
+  const data = await res.json();
+  return data;
+}
+
 // --- API Routes ---
 
 // Send payment link
 app.post('/api/send-payment-link', async (req, res) => {
-  const { customerName, customerEmail, productName, price } = req.body;
+  const { customerName, customerEmail, productName, price, customerPhone } = req.body;
 
   // Validation
   if (!customerName || !customerEmail || !productName || !price) {
@@ -51,18 +112,49 @@ app.post('/api/send-payment-link', async (req, res) => {
 
   const paymentId = uuidv4();
   const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-  const paymentLink = `${baseUrl}/pay/${paymentId}`;
 
   // Store payment
-  payments.set(paymentId, {
+  const payment = {
     id: paymentId,
     customerName: String(customerName).slice(0, 200),
     customerEmail: String(customerEmail).slice(0, 200),
+    customerPhone: String(customerPhone || '').slice(0, 20),
     productName: String(productName).slice(0, 200),
     price: Number(price),
     status: 'pending',
     createdAt: new Date().toISOString(),
-  });
+  };
+  payments.set(paymentId, payment);
+
+  // Determine payment link
+  let paymentLink;
+  let edfaRedirectUrl = null;
+
+  // Try EdfaPay if configured
+  if (process.env.EDFA_MERCHANT_ID && process.env.EDFA_MERCHANT_PASSWORD) {
+    try {
+      const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
+      const edfaResult = await initiateEdfaPayment(payment, clientIp);
+
+      if (edfaResult.redirect_url) {
+        edfaRedirectUrl = edfaResult.redirect_url;
+        payment.edfaRedirectUrl = edfaRedirectUrl;
+        paymentLink = edfaRedirectUrl;
+        console.log(`✅ EdfaPay: رابط دفع لطلب ${paymentId}`);
+      } else {
+        console.error('EdfaPay error:', JSON.stringify(edfaResult));
+        // Fallback to local payment page
+        paymentLink = `${baseUrl}/pay/${paymentId}`;
+        payment.edfaError = JSON.stringify(edfaResult);
+      }
+    } catch (err) {
+      console.error('EdfaPay request failed:', err.message);
+      paymentLink = `${baseUrl}/pay/${paymentId}`;
+    }
+  } else {
+    // No EdfaPay credentials — use local payment page
+    paymentLink = `${baseUrl}/pay/${paymentId}`;
+  }
 
   // Send email
   try {
@@ -152,7 +244,7 @@ app.get('/api/payment/:id', (req, res) => {
   });
 });
 
-// Confirm payment
+// Confirm payment (local fallback only)
 app.post('/api/payment/:id/pay', (req, res) => {
   const payment = payments.get(req.params.id);
   if (!payment) {
@@ -161,9 +253,61 @@ app.post('/api/payment/:id/pay', (req, res) => {
   if (payment.status === 'paid') {
     return res.status(400).json({ error: 'تم الدفع مسبقاً' });
   }
+
+  // If EdfaPay is configured, redirect to EdfaPay instead
+  if (payment.edfaRedirectUrl) {
+    return res.json({ redirect: payment.edfaRedirectUrl });
+  }
+
   payment.status = 'paid';
   payment.paidAt = new Date().toISOString();
   res.json({ success: true });
+});
+
+// --- EdfaPay Webhook (Callback) ---
+app.post('/api/edfa/webhook', (req, res) => {
+  console.log('📩 EdfaPay Webhook received:', JSON.stringify(req.body));
+
+  const { order_id, status, trans_id } = req.body;
+
+  if (!order_id) {
+    return res.status(400).send('Missing order_id');
+  }
+
+  const payment = payments.get(order_id);
+  if (!payment) {
+    console.error('Webhook: payment not found for order_id:', order_id);
+    return res.status(404).send('Not found');
+  }
+
+  // Update payment status based on EdfaPay response
+  const normalizedStatus = String(status).toLowerCase();
+  if (normalizedStatus === 'settled' || normalizedStatus === 'success' || normalizedStatus === '3ds_success') {
+    payment.status = 'paid';
+    payment.paidAt = new Date().toISOString();
+    payment.edfaTransId = trans_id;
+    console.log(`✅ Payment ${order_id} marked as paid via webhook`);
+  } else if (normalizedStatus === 'declined' || normalizedStatus === 'fail') {
+    payment.status = 'failed';
+    payment.edfaTransId = trans_id;
+    console.log(`❌ Payment ${order_id} failed via webhook`);
+  }
+
+  // Respond 200 to acknowledge
+  res.status(200).send('OK');
+});
+
+// --- EdfaPay 3DS Callback (term_url_3ds) ---
+app.all('/api/edfa/callback-3ds/:id', (req, res) => {
+  const payment = payments.get(req.params.id);
+  const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+
+  if (!payment) {
+    return res.redirect(`${baseUrl}/pay/invalid`);
+  }
+
+  // Redirect to our payment status page
+  res.redirect(`${baseUrl}/pay/${payment.id}`);
 });
 
 // List all payments (for dashboard)
