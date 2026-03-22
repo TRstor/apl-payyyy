@@ -241,6 +241,7 @@ app.get('/api/payment/:id', (req, res) => {
     customerName: payment.customerName,
     price: payment.price,
     status: payment.status,
+    edfaRedirectUrl: payment.edfaRedirectUrl || null,
   });
 });
 
@@ -281,16 +282,19 @@ app.post('/api/edfa/webhook', (req, res) => {
   }
 
   // Update payment status based on EdfaPay response
-  const normalizedStatus = String(status).toLowerCase();
-  if (normalizedStatus === 'settled' || normalizedStatus === 'success' || normalizedStatus === '3ds_success') {
+  const normalizedStatus = String(status || '').toLowerCase();
+  const result = String(req.body.result || '').toUpperCase();
+
+  if (normalizedStatus === 'settled' || normalizedStatus === 'success' || normalizedStatus === '3ds_success' || result === 'SUCCESS') {
     payment.status = 'paid';
     payment.paidAt = new Date().toISOString();
     payment.edfaTransId = trans_id;
     console.log(`✅ Payment ${order_id} marked as paid via webhook`);
-  } else if (normalizedStatus === 'declined' || normalizedStatus === 'fail') {
+  } else if (normalizedStatus === 'declined' || normalizedStatus === 'fail' || normalizedStatus === 'error' || result === 'DECLINED') {
     payment.status = 'failed';
+    payment.failReason = req.body.decline_reason || 'unknown';
     payment.edfaTransId = trans_id;
-    console.log(`❌ Payment ${order_id} failed via webhook`);
+    console.log(`❌ Payment ${order_id} failed: ${payment.failReason}`);
   }
 
   // Respond 200 to acknowledge
@@ -317,8 +321,12 @@ app.get('/api/payments', (req, res) => {
   res.json(list);
 });
 
-// Serve payment page
+// Serve payment page — redirect to EdfaPay if available
 app.get('/pay/:id', (req, res) => {
+  const payment = payments.get(req.params.id);
+  if (payment && payment.edfaRedirectUrl && payment.status === 'pending') {
+    return res.redirect(payment.edfaRedirectUrl);
+  }
   res.sendFile(path.join(__dirname, 'public', 'pay.html'));
 });
 

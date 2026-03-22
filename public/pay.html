@@ -226,6 +226,12 @@
 
         paymentData = await res.json();
 
+        // Auto-redirect to EdfaPay if available
+        if (paymentData.edfaRedirectUrl && paymentData.status === 'pending') {
+          window.location.href = paymentData.edfaRedirectUrl;
+          return;
+        }
+
         if (paymentData.status === 'paid') {
           showSuccess();
           return;
