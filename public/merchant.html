@@ -152,12 +152,12 @@
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || 'null');
     if (!token || !user || user.role !== 'merchant') {
-      window.location.href = '/login.html';
+      window.location.href = '/login';
     }
     document.getElementById('merchantName').textContent = user?.name || user?.email || '';
 
     function authHeaders() { return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }; }
-    function logout() { localStorage.clear(); window.location.href = '/login.html'; }
+    function logout() { localStorage.clear(); window.location.href = '/login'; }
     function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
     function statusBadge(s) {
       if (s === 'paid') return '<span class="badge badge-paid">مدفوع ✓</span>';

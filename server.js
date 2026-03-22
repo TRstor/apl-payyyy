@@ -81,9 +81,21 @@ function requireAuth(role) {
 // Auth routes
 // ============================================================
 
-// Redirect homepage to login
+// Clean URL routes
 app.get('/', (req, res) => {
-  res.redirect('/login.html');
+  res.redirect('/login');
+});
+
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+app.get('/merchant', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'merchant.html'));
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -542,7 +554,7 @@ app.get('/pay/:id', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
   console.log(`\n🚀 الخادم يعمل على: ${url}`);
-  console.log(`🔐 تسجيل الدخول: ${url}/login.html`);
+  console.log(`🔐 تسجيل الدخول: ${url}/login`);
   console.log(`👤 المدير: ${ADMIN_EMAIL}`);
   console.log(`\n⚙️  تأكد من ضبط إعدادات SMTP في ملف .env\n`);
 });
