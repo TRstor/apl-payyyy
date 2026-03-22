@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>إرسال رابط دفع</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .container {
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 24px;
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .logo h1 {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .logo p {
+      color: rgba(255,255,255,0.6);
+      margin-top: 8px;
+      font-size: 14px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: rgba(255,255,255,0.8);
+      font-weight: 500;
+    }
+    input {
+      width: 100%;
+      padding: 14px 18px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 15px;
+      transition: all 0.3s;
+      outline: none;
+      direction: rtl;
+    }
+    input::placeholder { color: rgba(255,255,255,0.35); }
+    input:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.25);
+      background: rgba(255,255,255,0.12);
+    }
+    .currency-input {
+      position: relative;
+    }
+    .currency-input span {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255,255,255,0.5);
+      font-size: 14px;
+    }
+    .currency-input input {
+      padding-left: 50px;
+    }
+    button {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 8px;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(102,126,234,0.4);
+    }
+    button:active { transform: translateY(0); }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .alert {
+      padding: 14px 18px;
+      border-radius: 12px;
+      margin-top: 20px;
+      font-size: 14px;
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    .alert.success {
+      display: block;
+      background: rgba(46,204,113,0.15);
+      border: 1px solid rgba(46,204,113,0.3);
+      color: #2ecc71;
+    }
+    .alert.error {
+      display: block;
+      background: rgba(231,76,60,0.15);
+      border: 1px solid rgba(231,76,60,0.3);
+      color: #e74c3c;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .history {
+      margin-top: 32px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      padding-top: 24px;
+    }
+    .history h3 {
+      font-size: 16px;
+      margin-bottom: 16px;
+      color: rgba(255,255,255,0.7);
+    }
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .history-item .product { color: #fff; font-weight: 500; }
+    .history-item .customer { color: rgba(255,255,255,0.5); }
+    .history-item .price { color: #667eea; font-weight: 600; }
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .status-pending {
+      background: rgba(241,196,15,0.15);
+      color: #f1c40f;
+    }
+    .status-paid {
+      background: rgba(46,204,113,0.15);
+      color: #2ecc71;
+    }
+    @media (max-width: 560px) {
+      .container { margin: 16px; padding: 32px 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <h1>💳 رابط الدفع</h1>
+      <p>أرسل رابط دفع لعميلك عبر البريد الإلكتروني</p>
+    </div>
+
+    <form id="paymentForm">
+      <div class="form-group">
+        <label>اسم العميل</label>
+        <input type="text" id="customerName" placeholder="مثال: أحمد محمد" required>
+      </div>
+
+      <div class="form-group">
+        <label>البريد الإلكتروني للعميل</label>
+        <input type="email" id="customerEmail" placeholder="example@email.com" dir="ltr" required>
+      </div>
+
+      <div class="form-group">
+        <label>اسم المنتج</label>
+        <input type="text" id="productName" placeholder="مثال: اشتراك سنوي" required>
+      </div>
+
+      <div class="form-group">
+        <label>السعر</label>
+        <div class="currency-input">
+          <span>ر.س</span>
+          <input type="number" id="price" placeholder="0.00" step="0.01" min="0.01" dir="ltr" required>
+        </div>
+      </div>
+
+      <button type="submit" id="submitBtn">
+        إرسال رابط الدفع 📧
+      </button>
+    </form>
+
+    <div id="alert" class="alert"></div>
+
+    <div class="history" id="historySection" style="display:none;">
+      <h3>📋 آخر الروابط المرسلة</h3>
+      <div id="historyList"></div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('paymentForm');
+    const alert = document.getElementById('alert');
+    const submitBtn = document.getElementById('submitBtn');
+    const historySection = document.getElementById('historySection');
+    const historyList = document.getElementById('historyList');
+
+    // Load history on page load
+    loadHistory();
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const customerName = document.getElementById('customerName').value.trim();
+      const customerEmail = document.getElementById('customerEmail').value.trim();
+      const productName = document.getElementById('productName').value.trim();
+      const price = parseFloat(document.getElementById('price').value);
+
+      if (!customerName || !customerEmail || !productName || !price) return;
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = 'جاري الإرسال... <span class="spinner"></span>';
+      alert.className = 'alert';
+      alert.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/send-payment-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerName, customerEmail, productName, price })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          alert.className = 'alert success';
+          alert.textContent = '✅ تم إرسال رابط الدفع بنجاح إلى ' + customerEmail;
+          form.reset();
+          loadHistory();
+        } else {
+          alert.className = 'alert error';
+          alert.textContent = '❌ ' + (data.error || 'حدث خطأ أثناء الإرسال');
+        }
+      } catch (err) {
+        alert.className = 'alert error';
+        alert.textContent = '❌ خطأ في الاتصال بالخادم';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'إرسال رابط الدفع 📧';
+      }
+    });
+
+    async function loadHistory() {
+      try {
+        const res = await fetch('/api/payments');
+        const payments = await res.json();
+
+        if (payments.length === 0) {
+          historySection.style.display = 'none';
+          return;
+        }
+
+        historySection.style.display = 'block';
+        historyList.innerHTML = payments.slice(0, 5).map(p => `
+          <div class="history-item">
+            <div>
+              <div class="product">${escapeHtml(p.productName)}</div>
+              <div class="customer">${escapeHtml(p.customerName)} - ${escapeHtml(p.customerEmail)}</div>
+            </div>
+            <div style="text-align:left;">
+              <div class="price">${Number(p.price).toFixed(2)} ر.س</div>
+              <span class="status-badge ${p.status === 'paid' ? 'status-paid' : 'status-pending'}">
+                ${p.status === 'paid' ? 'مدفوع ✓' : 'بانتظار الدفع'}
+              </span>
+            </div>
+          </div>
+        `).join('');
+      } catch(e) {}
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
