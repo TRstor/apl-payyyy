@@ -205,43 +205,55 @@ async function initiateEdfaPayment(payment, payerIp) {
 }
 
 // Build payment email HTML
-function buildPaymentEmailHtml(customerName, productName, price, paymentLink) {
+function buildPaymentEmailHtml(customerName, customerEmail, productName, price, paymentLink) {
   return `
     <!DOCTYPE html>
     <html dir="rtl" lang="ar">
     <head><meta charset="UTF-8"></head>
     <body style="font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; direction: rtl;">
-      <div style="max-width: 500px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+      <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
         <div style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 32px; text-align: center; color: #fff;">
-          <h1 style="margin: 0; font-size: 24px;">💳 رابط الدفع</h1>
+          <h1 style="margin: 0; font-size: 22px;">💳 تفاصيل طلب الدفع</h1>
+          <p style="margin: 8px 0 0; font-size: 13px; opacity: 0.8;">تم إنشاء طلب دفع خاص بك</p>
         </div>
         <div style="padding: 32px;">
-          <p style="font-size: 16px; color: #333;">مرحباً <strong>${escapeHtml(String(customerName))}</strong>,</p>
-          <p style="color: #666; line-height: 1.6;">تم إنشاء رابط دفع خاص بك للمنتج التالي:</p>
-          <div style="background: #f8f9fa; border-radius: 12px; padding: 20px; margin: 20px 0;">
+          <p style="font-size: 16px; color: #333; margin-bottom: 20px;">مرحباً <strong>${escapeHtml(String(customerName))}</strong>,</p>
+          <p style="color: #666; line-height: 1.6; margin-bottom: 24px;">لديك طلب دفع جديد، يرجى مراجعة التفاصيل أدناه ثم الضغط على الزر لإتمام عملية الدفع.</p>
+          
+          <div style="background: #f8f9fa; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #eee;">
+            <h3 style="margin: 0 0 16px; font-size: 15px; color: #555;">📋 تفاصيل الطلب</h3>
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
-                <td style="padding: 8px 0; color: #888;">المنتج:</td>
-                <td style="padding: 8px 0; color: #333; font-weight: 600; text-align: left;">${escapeHtml(String(productName))}</td>
+                <td style="padding: 10px 0; color: #888; font-size: 14px;">العميل:</td>
+                <td style="padding: 10px 0; color: #333; font-weight: 600; text-align: left; font-size: 14px;">${escapeHtml(String(customerName))}</td>
               </tr>
               <tr>
-                <td style="padding: 8px 0; color: #888; border-top: 1px solid #eee;">المبلغ:</td>
-                <td style="padding: 8px 0; color: #667eea; font-weight: 700; font-size: 20px; text-align: left; border-top: 1px solid #eee;">
+                <td style="padding: 10px 0; color: #888; font-size: 14px; border-top: 1px solid #eee;">البريد:</td>
+                <td style="padding: 10px 0; color: #555; text-align: left; font-size: 14px; border-top: 1px solid #eee;" dir="ltr">${escapeHtml(String(customerEmail))}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px 0; color: #888; font-size: 14px; border-top: 1px solid #eee;">المنتج:</td>
+                <td style="padding: 10px 0; color: #333; font-weight: 600; text-align: left; font-size: 14px; border-top: 1px solid #eee;">${escapeHtml(String(productName))}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 0; color: #888; font-size: 14px; border-top: 2px solid #667eea;">المبلغ المطلوب:</td>
+                <td style="padding: 12px 0; color: #667eea; font-weight: 700; font-size: 22px; text-align: left; border-top: 2px solid #667eea;">
                   ${Number(price).toFixed(2)} ر.س
                 </td>
               </tr>
             </table>
           </div>
-          <a href="${paymentLink}" style="display: block; text-align: center; background: linear-gradient(135deg, #2ecc71, #27ae60); color: #fff; padding: 16px; border-radius: 12px; text-decoration: none; font-size: 18px; font-weight: 700; margin: 24px 0;">
-            ادفع الآن ✓
+
+          <a href="${paymentLink}" style="display: block; text-align: center; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; padding: 16px; border-radius: 12px; text-decoration: none; font-size: 17px; font-weight: 700; margin-bottom: 16px;">
+            عرض التفاصيل وإتمام الدفع →
           </a>
-          <p style="font-size: 12px; color: #999; text-align: center;">
-            أو انسخ الرابط التالي:<br>
+          <p style="font-size: 12px; color: #999; text-align: center; margin-bottom: 0;">
+            أو انسخ الرابط:<br>
             <a href="${paymentLink}" style="color: #667eea; word-break: break-all;">${paymentLink}</a>
           </p>
         </div>
         <div style="background: #f8f9fa; padding: 16px; text-align: center; font-size: 12px; color: #999;">
-          🔒 هذا الرابط آمن ومخصص لك فقط
+          🔒 سيتم تحويلك لصفحة آمنة لمراجعة الطلب قبل الدفع
         </div>
       </div>
     </body>
@@ -281,32 +293,30 @@ async function sendPaymentLink(req, merchantId) {
   };
   payments.set(paymentId, payment);
 
-  let paymentLink;
+  // Always link to intermediate page, not directly to EdfaPay
+  const paymentLink = `${baseUrl}/pay/${paymentId}`;
+
+  // Initiate EdfaPay if configured (store redirect URL for the intermediate page)
   if (process.env.EDFA_MERCHANT_ID && process.env.EDFA_MERCHANT_PASSWORD) {
     try {
       const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
       const edfaResult = await initiateEdfaPayment(payment, clientIp);
       if (edfaResult.redirect_url) {
         payment.edfaRedirectUrl = edfaResult.redirect_url;
-        paymentLink = edfaResult.redirect_url;
         console.log(`✅ EdfaPay: رابط دفع لطلب ${paymentId}`);
       } else {
         console.error('EdfaPay error:', JSON.stringify(edfaResult));
-        paymentLink = `${baseUrl}/pay/${paymentId}`;
         payment.edfaError = JSON.stringify(edfaResult);
       }
     } catch (err) {
       console.error('EdfaPay request failed:', err.message);
-      paymentLink = `${baseUrl}/pay/${paymentId}`;
     }
-  } else {
-    paymentLink = `${baseUrl}/pay/${paymentId}`;
   }
 
   // Send email
   try {
     const transporter = createTransporter();
-    const htmlEmail = buildPaymentEmailHtml(customerName, productName, price, paymentLink);
+    const htmlEmail = buildPaymentEmailHtml(customerName, customerEmail, productName, price, paymentLink);
     const fromName = process.env.SMTP_FROM_NAME || '';
     const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
     const fromAddress = fromName ? `"${fromName}" <${fromEmail}>` : fromEmail;
