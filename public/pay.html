@@ -186,6 +186,7 @@
       <h1>فشلت عملية الدفع</h1>
       <span class="status-badge badge-failed">✗ فشل</span>
       <p class="sub">عذراً <strong id="fName"></strong>، لم تتم عملية الدفع. يمكنك المحاولة مرة أخرى.</p>
+      <p id="failReasonText" style="color:#e74c3c; font-size:1.1rem; font-weight:600; margin-top:6px;"></p>
 
       <div class="info-card">
         <div class="info-row">
@@ -230,6 +231,28 @@
       document.getElementById(stateId).classList.add('active');
     }
 
+    const declineReasons = {
+      'INSUFFICIENT_FUNDS': 'رصيد غير كافي',
+      'INVALID_CARD': 'بطاقة غير صالحة',
+      'EXPIRED_CARD': 'بطاقة منتهية الصلاحية',
+      'AUTHENTICATION_FAILED': 'فشل المصادقة - أدخل رمز التحقق الصحيح',
+      'DO_NOT_HONOR': 'تم رفض العملية من البنك',
+      'DECLINED': 'تم رفض البطاقة',
+      'LIMIT_EXCEEDED': 'تم تجاوز الحد المسموح',
+      'STOLEN_CARD': 'بطاقة مسروقة أو محظورة',
+      'LOST_CARD': 'بطاقة مفقودة أو محظورة',
+      'RESTRICTED_CARD': 'بطاقة مقيّدة',
+    };
+
+    function showFailReason(reason) {
+      const el = document.getElementById('failReasonText');
+      if (!reason || reason === 'unknown') {
+        el.textContent = 'جرب بطاقة أخرى';
+        return;
+      }
+      el.textContent = declineReasons[reason] || 'جرب بطاقة أخرى';
+    }
+
     function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
     function fillDetails(prefix, data) {
@@ -256,6 +279,7 @@
 
         if (paymentData.status === 'failed') {
           fillDetails('f', paymentData);
+          showFailReason(paymentData.failReason);
           show('stateFailed');
           return;
         }
@@ -311,6 +335,7 @@
           } else if (data.status === 'failed') {
             paymentData = data;
             fillDetails('f', paymentData);
+            showFailReason(paymentData.failReason);
             show('stateFailed');
           }
         } catch(e) {}

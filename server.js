@@ -484,6 +484,7 @@ app.get('/api/payment/:id', (req, res) => {
     price: payment.price,
     status: payment.status,
     edfaRedirectUrl: payment.edfaRedirectUrl || null,
+    failReason: payment.failReason || null,
   });
 });
 
