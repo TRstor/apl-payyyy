@@ -206,58 +206,136 @@ async function initiateEdfaPayment(payment, payerIp) {
 
 // Build payment email HTML
 function buildPaymentEmailHtml(customerName, customerEmail, productName, price, paymentLink) {
-  return `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head><meta charset="UTF-8"></head>
-    <body style="font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; direction: rtl;">
-      <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 32px; text-align: center; color: #fff;">
-          <h1 style="margin: 0; font-size: 22px;">💳 تفاصيل طلب الدفع</h1>
-          <p style="margin: 8px 0 0; font-size: 13px; opacity: 0.8;">تم إنشاء طلب دفع خاص بك</p>
-        </div>
-        <div style="padding: 32px;">
-          <p style="font-size: 16px; color: #333; margin-bottom: 20px;">مرحباً <strong>${escapeHtml(String(customerName))}</strong>,</p>
-          <p style="color: #666; line-height: 1.6; margin-bottom: 24px;">لديك طلب دفع جديد، يرجى مراجعة التفاصيل أدناه ثم الضغط على الزر لإتمام عملية الدفع.</p>
-          
-          <div style="background: #f8f9fa; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #eee;">
-            <h3 style="margin: 0 0 16px; font-size: 15px; color: #555;">📋 تفاصيل الطلب</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="padding: 10px 0; color: #888; font-size: 14px;">العميل:</td>
-                <td style="padding: 10px 0; color: #333; font-weight: 600; text-align: left; font-size: 14px;">${escapeHtml(String(customerName))}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px 0; color: #888; font-size: 14px; border-top: 1px solid #eee;">البريد:</td>
-                <td style="padding: 10px 0; color: #555; text-align: left; font-size: 14px; border-top: 1px solid #eee;" dir="ltr">${escapeHtml(String(customerEmail))}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px 0; color: #888; font-size: 14px; border-top: 1px solid #eee;">المنتج:</td>
-                <td style="padding: 10px 0; color: #333; font-weight: 600; text-align: left; font-size: 14px; border-top: 1px solid #eee;">${escapeHtml(String(productName))}</td>
-              </tr>
-              <tr>
-                <td style="padding: 12px 0; color: #888; font-size: 14px; border-top: 2px solid #667eea;">المبلغ المطلوب:</td>
-                <td style="padding: 12px 0; color: #667eea; font-weight: 700; font-size: 22px; text-align: left; border-top: 2px solid #667eea;">
-                  ${Number(price).toFixed(2)} ر.س
-                </td>
-              </tr>
-            </table>
-          </div>
+  const safeName = escapeHtml(String(customerName));
+  const safeEmail = escapeHtml(String(customerEmail));
+  const safeProduct = escapeHtml(String(productName));
+  const formattedPrice = Number(price).toFixed(2);
 
-          <a href="${paymentLink}" style="display: block; text-align: center; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; padding: 16px; border-radius: 12px; text-decoration: none; font-size: 17px; font-weight: 700; margin-bottom: 16px;">
-            عرض التفاصيل وإتمام الدفع →
-          </a>
-          <p style="font-size: 12px; color: #999; text-align: center; margin-bottom: 0;">
-            أو انسخ الرابط:<br>
-            <a href="${paymentLink}" style="color: #667eea; word-break: break-all;">${paymentLink}</a>
-          </p>
-        </div>
-        <div style="background: #f8f9fa; padding: 16px; text-align: center; font-size: 12px; color: #999;">
-          🔒 سيتم تحويلك لصفحة آمنة لمراجعة الطلب قبل الدفع
-        </div>
-      </div>
-    </body>
-    </html>`;
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>طلب دفع</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f0f2f5; font-family:'Segoe UI',Tahoma,Arial,sans-serif; direction:rtl; -webkit-text-size-adjust:100%;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f2f5; padding:30px 10px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:500px; background-color:#ffffff; border-radius:20px; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#6c5ce7,#a855f7); padding:40px 30px; text-align:center;">
+              <div style="font-size:40px; margin-bottom:12px;">💳</div>
+              <h1 style="margin:0; color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.3px;">طلب دفع جديد</h1>
+              <p style="margin:10px 0 0; color:rgba(255,255,255,0.85); font-size:14px;">تم إنشاء طلب دفع خاص بك</p>
+            </td>
+          </tr>
+
+          <!-- Greeting -->
+          <tr>
+            <td style="padding:30px 30px 10px;">
+              <p style="margin:0; font-size:18px; color:#1a1a2e; font-weight:600;">مرحباً ${safeName} 👋</p>
+              <p style="margin:10px 0 0; font-size:14px; color:#64748b; line-height:1.7;">لديك طلب دفع جديد، راجع التفاصيل أدناه ثم اضغط على الزر لإتمام الدفع.</p>
+            </td>
+          </tr>
+
+          <!-- Amount Card -->
+          <tr>
+            <td style="padding:20px 30px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#6c5ce7,#a855f7); border-radius:16px; overflow:hidden;">
+                <tr>
+                  <td style="padding:28px; text-align:center;">
+                    <p style="margin:0 0 6px; color:rgba(255,255,255,0.8); font-size:13px;">المبلغ المطلوب</p>
+                    <p style="margin:0; color:#ffffff; font-size:36px; font-weight:800; letter-spacing:-1px;">${formattedPrice} <span style="font-size:18px; font-weight:600;">ر.س</span></p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Details -->
+          <tr>
+            <td style="padding:0 30px 10px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fc; border-radius:14px; border:1px solid #e8eaf0;">
+                <tr>
+                  <td style="padding:20px 22px 8px;">
+                    <p style="margin:0 0 14px; font-size:14px; color:#6c5ce7; font-weight:700;">📋 تفاصيل الطلب</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:0 22px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding:12px 0; border-bottom:1px solid #e8eaf0; width:35%;">
+                          <span style="color:#94a3b8; font-size:13px;">👤 العميل</span>
+                        </td>
+                        <td style="padding:12px 0; border-bottom:1px solid #e8eaf0; text-align:left;">
+                          <span style="color:#1e293b; font-size:14px; font-weight:600;">${safeName}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:12px 0; border-bottom:1px solid #e8eaf0;">
+                          <span style="color:#94a3b8; font-size:13px;">📧 البريد</span>
+                        </td>
+                        <td style="padding:12px 0; border-bottom:1px solid #e8eaf0; text-align:left;" dir="ltr">
+                          <span style="color:#1e293b; font-size:14px;">${safeEmail}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:12px 0;">
+                          <span style="color:#94a3b8; font-size:13px;">🛍️ المنتج</span>
+                        </td>
+                        <td style="padding:12px 0; text-align:left;">
+                          <span style="color:#1e293b; font-size:14px; font-weight:600;">${safeProduct}</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr><td style="padding:0 0 16px;"></td></tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA Button -->
+          <tr>
+            <td style="padding:16px 30px 8px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <a href="${paymentLink}" target="_blank" style="display:inline-block; width:100%; max-width:400px; background:linear-gradient(135deg,#6c5ce7,#a855f7); color:#ffffff; padding:18px 30px; border-radius:14px; text-decoration:none; font-size:17px; font-weight:700; text-align:center; box-sizing:border-box;">
+                      ادفع الآن ←
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Link fallback -->
+          <tr>
+            <td style="padding:8px 30px 24px; text-align:center;">
+              <p style="margin:0; font-size:12px; color:#94a3b8;">أو انسخ الرابط:</p>
+              <a href="${paymentLink}" dir="ltr" style="font-size:12px; color:#6c5ce7; word-break:break-all; text-decoration:underline;">${paymentLink}</a>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f8f9fc; padding:20px 30px; text-align:center; border-top:1px solid #e8eaf0;">
+              <p style="margin:0; font-size:12px; color:#94a3b8;">🔒 ستتم عملية الدفع عبر بوابة دفع آمنة ومشفرة</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 // ============================================================
