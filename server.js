@@ -678,10 +678,7 @@ seedAdmin().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
     const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
     console.log(`\n🚀 الخادم يعمل على: ${url}`);
-    console.log(`🔐 تسجيل الدخول: ${url}/login`);
-    console.log(`👤 المدير: ${ADMIN_EMAIL}`);
-    console.log(`🔥 Firebase Firestore متصل`);
-    console.log(`\n⚙️  تأكد من ضبط إعدادات SMTP في ملف .env\n`);
+    console.log(`� Firebase Firestore متصل\n`);
   });
 }).catch(err => {
   console.error('❌ خطأ في التشغيل:', err.message);
