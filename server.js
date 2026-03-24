@@ -4,7 +4,11 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const bcrypt = require('bcrypt');
 const admin = require('firebase-admin');
+
+const BCRYPT_ROUNDS = 10;
+const TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
 // ============================================================
 // Firebase Firestore
@@ -30,14 +34,22 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 async function seedAdmin() {
   const snapshot = await usersCol.where('email', '==', ADMIN_EMAIL).where('role', '==', 'admin').limit(1).get();
   if (!snapshot.empty) {
-    console.log(`👤 Admin exists: ${ADMIN_EMAIL}`);
+    // Re-hash password if stored as plaintext (migration)
+    const doc = snapshot.docs[0];
+    const data = doc.data();
+    if (!data.password.startsWith('$2b$')) {
+      const hashed = await bcrypt.hash(ADMIN_PASSWORD, BCRYPT_ROUNDS);
+      await usersCol.doc(doc.id).update({ password: hashed });
+      console.log('🔒 Admin password migrated to bcrypt');
+    }
     return;
   }
   const adminId = 'admin-' + crypto.randomBytes(4).toString('hex');
+  const hashedPassword = await bcrypt.hash(ADMIN_PASSWORD, BCRYPT_ROUNDS);
   await usersCol.doc(adminId).set({
     id: adminId,
     email: ADMIN_EMAIL,
-    password: ADMIN_PASSWORD,
+    password: hashedPassword,
     name: 'المدير',
     role: 'admin',
     createdAt: new Date().toISOString(),
@@ -81,7 +93,14 @@ function requireAuth(role) {
     if (!tokenDoc.exists) {
       return res.status(401).json({ error: 'جلسة غير صالحة' });
     }
-    const userId = tokenDoc.data().userId;
+    const tokenData = tokenDoc.data();
+    // Check token expiration
+    const tokenAge = Date.now() - new Date(tokenData.createdAt).getTime();
+    if (tokenAge > TOKEN_EXPIRY_MS) {
+      await tokensCol.doc(token).delete();
+      return res.status(401).json({ error: 'انتهت صلاحية الجلسة، سجل دخول مرة أخرى' });
+    }
+    const userId = tokenData.userId;
     const userDoc = await usersCol.doc(userId).get();
     if (!userDoc.exists) {
       return res.status(401).json({ error: 'مستخدم غير موجود' });
@@ -127,7 +146,19 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   }
   const user = snapshot.docs[0].data();
-  if (user.password !== password) {
+  // Support both bcrypt and plaintext (auto-migrate old passwords)
+  let passwordValid = false;
+  if (user.password.startsWith('$2b$')) {
+    passwordValid = await bcrypt.compare(password, user.password);
+  } else {
+    // Legacy plaintext — migrate to bcrypt
+    passwordValid = (user.password === password);
+    if (passwordValid) {
+      const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
+      await usersCol.doc(snapshot.docs[0].id).update({ password: hashed });
+    }
+  }
+  if (!passwordValid) {
     return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   }
   const token = generateToken();
@@ -512,10 +543,11 @@ app.post('/api/admin/merchants', requireAuth('admin'), async (req, res) => {
     return res.status(400).json({ error: 'البريد مسجل مسبقاً' });
   }
   const id = 'merchant-' + crypto.randomBytes(4).toString('hex');
+  const hashedPass = await bcrypt.hash(String(password), BCRYPT_ROUNDS);
   const merchant = {
     id,
     email: normalEmail,
-    password: String(password),
+    password: hashedPass,
     name: String(name).slice(0, 200),
     role: 'merchant',
     createdAt: new Date().toISOString(),
