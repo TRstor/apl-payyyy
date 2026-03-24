@@ -33,3 +33,5 @@ services:
         sync: false
       - key: EDFA_COUNTRY
         sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false

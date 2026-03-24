@@ -4,30 +4,46 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const admin = require('firebase-admin');
+
+// ============================================================
+// Firebase Firestore
+// ============================================================
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+const db = admin.firestore();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ============================================================
-// In-memory stores
-// ============================================================
-const payments = new Map();
-const users = new Map();      // id -> user
-const tokens = new Map();     // token -> userId
+// Firestore collections
+const usersCol = db.collection('users');
+const paymentsCol = db.collection('payments');
+const tokensCol = db.collection('tokens');
 
-// Seed admin user from env
+// Seed admin user from env (runs once on startup)
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@admin.com').toLowerCase();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
-const adminId = 'admin-' + crypto.randomBytes(4).toString('hex');
-users.set(adminId, {
-  id: adminId,
-  email: ADMIN_EMAIL,
-  password: ADMIN_PASSWORD,
-  name: 'المدير',
-  role: 'admin',
-  createdAt: new Date().toISOString(),
-});
-console.log(`👤 Admin seeded: ${ADMIN_EMAIL}`);
+
+async function seedAdmin() {
+  const snapshot = await usersCol.where('email', '==', ADMIN_EMAIL).where('role', '==', 'admin').limit(1).get();
+  if (!snapshot.empty) {
+    console.log(`👤 Admin exists: ${ADMIN_EMAIL}`);
+    return;
+  }
+  const adminId = 'admin-' + crypto.randomBytes(4).toString('hex');
+  await usersCol.doc(adminId).set({
+    id: adminId,
+    email: ADMIN_EMAIL,
+    password: ADMIN_PASSWORD,
+    name: 'المدير',
+    role: 'admin',
+    createdAt: new Date().toISOString(),
+  });
+  console.log(`👤 Admin seeded: ${ADMIN_EMAIL}`);
+}
 
 // ============================================================
 // Middleware
@@ -55,20 +71,22 @@ function generateToken() {
 }
 
 function requireAuth(role) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'غير مصرح' });
     }
     const token = authHeader.slice(7);
-    const userId = tokens.get(token);
-    if (!userId) {
+    const tokenDoc = await tokensCol.doc(token).get();
+    if (!tokenDoc.exists) {
       return res.status(401).json({ error: 'جلسة غير صالحة' });
     }
-    const user = users.get(userId);
-    if (!user) {
+    const userId = tokenDoc.data().userId;
+    const userDoc = await usersCol.doc(userId).get();
+    if (!userDoc.exists) {
       return res.status(401).json({ error: 'مستخدم غير موجود' });
     }
+    const user = userDoc.data();
     if (role && user.role !== role) {
       return res.status(403).json({ error: 'ليس لديك صلاحية' });
     }
@@ -98,28 +116,32 @@ app.get('/merchant', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'merchant.html'));
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'البريد وكلمة المرور مطلوبين' });
   }
   const normalEmail = String(email).toLowerCase().trim();
-  const user = Array.from(users.values()).find(u => u.email === normalEmail);
-  if (!user || user.password !== password) {
+  const snapshot = await usersCol.where('email', '==', normalEmail).limit(1).get();
+  if (snapshot.empty) {
+    return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
+  }
+  const user = snapshot.docs[0].data();
+  if (user.password !== password) {
     return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   }
   const token = generateToken();
-  tokens.set(token, user.id);
+  await tokensCol.doc(token).set({ userId: user.id, createdAt: new Date().toISOString() });
   res.json({
     token,
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
   });
 });
 
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', async (req, res) => {
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ')) {
-    tokens.delete(authHeader.slice(7));
+    await tokensCol.doc(authHeader.slice(7)).delete();
   }
   res.json({ success: true });
 });
@@ -369,7 +391,7 @@ async function sendPaymentLink(req, merchantId) {
     status: 'pending',
     createdAt: new Date().toISOString(),
   };
-  payments.set(paymentId, payment);
+  await paymentsCol.doc(paymentId).set(payment);
 
   // Always link to intermediate page, not directly to EdfaPay
   const paymentLink = `${baseUrl}/pay/${paymentId}`;
@@ -381,10 +403,12 @@ async function sendPaymentLink(req, merchantId) {
       const edfaResult = await initiateEdfaPayment(payment, clientIp);
       if (edfaResult.redirect_url) {
         payment.edfaRedirectUrl = edfaResult.redirect_url;
+        await paymentsCol.doc(paymentId).update({ edfaRedirectUrl: edfaResult.redirect_url });
         console.log(`✅ EdfaPay: رابط دفع لطلب ${paymentId}`);
       } else {
         console.error('EdfaPay error:', JSON.stringify(edfaResult));
         payment.edfaError = JSON.stringify(edfaResult);
+        await paymentsCol.doc(paymentId).update({ edfaError: payment.edfaError });
       }
     } catch (err) {
       console.error('EdfaPay request failed:', err.message);
@@ -426,60 +450,65 @@ async function sendPaymentLink(req, merchantId) {
 // ============================================================
 
 // Admin dashboard data
-app.get('/api/admin/dashboard', requireAuth('admin'), (req, res) => {
-  const allPayments = Array.from(payments.values()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+app.get('/api/admin/dashboard', requireAuth('admin'), async (req, res) => {
+  const paymentsSnap = await paymentsCol.orderBy('createdAt', 'desc').get();
+  const allPayments = paymentsSnap.docs.map(d => d.data());
   const totalRevenue = allPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.price, 0);
-  const merchantsList = Array.from(users.values()).filter(u => u.role === 'merchant');
+  const merchantsSnap = await usersCol.where('role', '==', 'merchant').get();
   res.json({
     totalRevenue,
     totalCount: allPayments.length,
     paidCount: allPayments.filter(p => p.status === 'paid').length,
     pendingCount: allPayments.filter(p => p.status === 'pending').length,
     failedCount: allPayments.filter(p => p.status === 'failed').length,
-    merchantsCount: merchantsList.length,
+    merchantsCount: merchantsSnap.size,
     payments: allPayments,
   });
 });
 
 // Admin: list payments
-app.get('/api/admin/payments', requireAuth('admin'), (req, res) => {
-  const allPayments = Array.from(payments.values()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+app.get('/api/admin/payments', requireAuth('admin'), async (req, res) => {
+  const paymentsSnap = await paymentsCol.orderBy('createdAt', 'desc').get();
+  const allPayments = paymentsSnap.docs.map(d => d.data());
   // Attach merchant name
-  const enriched = allPayments.map(p => {
-    const merchant = users.get(p.merchantId);
-    return { ...p, merchantName: merchant ? merchant.name : '—' };
-  });
+  const enriched = [];
+  for (const p of allPayments) {
+    const merchantDoc = await usersCol.doc(p.merchantId).get();
+    enriched.push({ ...p, merchantName: merchantDoc.exists ? merchantDoc.data().name : '—' });
+  }
   res.json(enriched);
 });
 
 // Admin: list merchants
-app.get('/api/admin/merchants', requireAuth('admin'), (req, res) => {
-  const merchantsList = Array.from(users.values())
-    .filter(u => u.role === 'merchant')
-    .map(u => {
-      const merchantPayments = Array.from(payments.values()).filter(p => p.merchantId === u.id);
-      const walletBalance = merchantPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.price, 0);
-      return {
-        id: u.id,
-        email: u.email,
-        name: u.name,
-        createdAt: u.createdAt,
-        paymentsCount: merchantPayments.length,
-        walletBalance,
-      };
+app.get('/api/admin/merchants', requireAuth('admin'), async (req, res) => {
+  const merchantsSnap = await usersCol.where('role', '==', 'merchant').get();
+  const merchantsList = [];
+  for (const doc of merchantsSnap.docs) {
+    const u = doc.data();
+    const mpSnap = await paymentsCol.where('merchantId', '==', u.id).get();
+    const merchantPayments = mpSnap.docs.map(d => d.data());
+    const walletBalance = merchantPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.price, 0);
+    merchantsList.push({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      createdAt: u.createdAt,
+      paymentsCount: merchantPayments.length,
+      walletBalance,
     });
+  }
   res.json(merchantsList);
 });
 
 // Admin: add merchant
-app.post('/api/admin/merchants', requireAuth('admin'), (req, res) => {
+app.post('/api/admin/merchants', requireAuth('admin'), async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
   }
   const normalEmail = String(email).toLowerCase().trim();
-  const exists = Array.from(users.values()).find(u => u.email === normalEmail);
-  if (exists) {
+  const existsSnap = await usersCol.where('email', '==', normalEmail).limit(1).get();
+  if (!existsSnap.empty) {
     return res.status(400).json({ error: 'البريد مسجل مسبقاً' });
   }
   const id = 'merchant-' + crypto.randomBytes(4).toString('hex');
@@ -491,23 +520,24 @@ app.post('/api/admin/merchants', requireAuth('admin'), (req, res) => {
     role: 'merchant',
     createdAt: new Date().toISOString(),
   };
-  users.set(id, merchant);
+  await usersCol.doc(id).set(merchant);
   console.log(`✅ Merchant added: ${normalEmail}`);
   res.json({ success: true, merchant: { id, email: merchant.email, name: merchant.name } });
 });
 
 // Admin: delete merchant
-app.delete('/api/admin/merchants/:id', requireAuth('admin'), (req, res) => {
-  const user = users.get(req.params.id);
-  if (!user || user.role !== 'merchant') {
+app.delete('/api/admin/merchants/:id', requireAuth('admin'), async (req, res) => {
+  const userDoc = await usersCol.doc(req.params.id).get();
+  if (!userDoc.exists || userDoc.data().role !== 'merchant') {
     return res.status(404).json({ error: 'التاجر غير موجود' });
   }
-  users.delete(req.params.id);
+  await usersCol.doc(req.params.id).delete();
   // Remove merchant's tokens
-  for (const [tok, uid] of tokens.entries()) {
-    if (uid === req.params.id) tokens.delete(tok);
-  }
-  console.log(`🗑️ Merchant deleted: ${user.email}`);
+  const tokSnap = await tokensCol.where('userId', '==', req.params.id).get();
+  const batch = db.batch();
+  tokSnap.docs.forEach(d => batch.delete(d.ref));
+  await batch.commit();
+  console.log(`🗑️ Merchant deleted: ${userDoc.data().email}`);
   res.json({ success: true });
 });
 
@@ -522,10 +552,9 @@ app.post('/api/admin/send-payment-link', requireAuth('admin'), async (req, res) 
 // ============================================================
 
 // Merchant dashboard data
-app.get('/api/merchant/dashboard', requireAuth('merchant'), (req, res) => {
-  const myPayments = Array.from(payments.values())
-    .filter(p => p.merchantId === req.user.id)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+app.get('/api/merchant/dashboard', requireAuth('merchant'), async (req, res) => {
+  const myPaymentsSnap = await paymentsCol.where('merchantId', '==', req.user.id).orderBy('createdAt', 'desc').get();
+  const myPayments = myPaymentsSnap.docs.map(d => d.data());
 
   const walletBalance = myPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.price, 0);
 
@@ -550,11 +579,12 @@ app.post('/api/merchant/send-payment-link', requireAuth('merchant'), async (req,
 // ============================================================
 
 // Get payment details
-app.get('/api/payment/:id', (req, res) => {
-  const payment = payments.get(req.params.id);
-  if (!payment) {
+app.get('/api/payment/:id', async (req, res) => {
+  const doc = await paymentsCol.doc(req.params.id).get();
+  if (!doc.exists) {
     return res.status(404).json({ error: 'الدفعة غير موجودة' });
   }
+  const payment = doc.data();
   res.json({
     productName: payment.productName,
     customerName: payment.customerName,
@@ -567,26 +597,29 @@ app.get('/api/payment/:id', (req, res) => {
 });
 
 // Confirm payment (local fallback)
-app.post('/api/payment/:id/pay', (req, res) => {
-  const payment = payments.get(req.params.id);
-  if (!payment) {
+app.post('/api/payment/:id/pay', async (req, res) => {
+  const doc = await paymentsCol.doc(req.params.id).get();
+  if (!doc.exists) {
     return res.status(404).json({ error: 'الدفعة غير موجودة' });
   }
+  const payment = doc.data();
   if (payment.status === 'paid') {
     return res.status(400).json({ error: 'تم الدفع مسبقاً' });
   }
   if (payment.edfaRedirectUrl) {
     return res.json({ redirect: payment.edfaRedirectUrl });
   }
-  payment.status = 'paid';
-  payment.paidAt = new Date().toISOString();
+  await paymentsCol.doc(req.params.id).update({
+    status: 'paid',
+    paidAt: new Date().toISOString(),
+  });
   res.json({ success: true });
 });
 
 // ============================================================
 // EdfaPay Webhook
 // ============================================================
-app.post('/api/edfa/webhook', (req, res) => {
+app.post('/api/edfa/webhook', async (req, res) => {
   console.log('📩 EdfaPay Webhook received:', JSON.stringify(req.body));
 
   const { order_id, status, trans_id } = req.body;
@@ -594,8 +627,8 @@ app.post('/api/edfa/webhook', (req, res) => {
     return res.status(400).send('Missing order_id');
   }
 
-  const payment = payments.get(order_id);
-  if (!payment) {
+  const doc = await paymentsCol.doc(order_id).get();
+  if (!doc.exists) {
     console.error('Webhook: payment not found for order_id:', order_id);
     return res.status(404).send('Not found');
   }
@@ -604,29 +637,33 @@ app.post('/api/edfa/webhook', (req, res) => {
   const result = String(req.body.result || '').toUpperCase();
 
   if (normalizedStatus === 'settled' || normalizedStatus === 'success' || normalizedStatus === '3ds_success' || result === 'SUCCESS') {
-    payment.status = 'paid';
-    payment.paidAt = new Date().toISOString();
-    payment.edfaTransId = trans_id;
-    console.log(`✅ Payment ${order_id} marked as paid via webhook (merchant: ${payment.merchantId})`);
+    await paymentsCol.doc(order_id).update({
+      status: 'paid',
+      paidAt: new Date().toISOString(),
+      edfaTransId: trans_id || null,
+    });
+    console.log(`✅ Payment ${order_id} marked as paid via webhook`);
   } else if (normalizedStatus === 'declined' || normalizedStatus === 'fail' || normalizedStatus === 'error' || result === 'DECLINED') {
-    payment.status = 'failed';
-    payment.failReason = req.body.decline_reason || 'unknown';
-    payment.edfaTransId = trans_id;
-    console.log(`❌ Payment ${order_id} failed: ${payment.failReason}`);
+    await paymentsCol.doc(order_id).update({
+      status: 'failed',
+      failReason: req.body.decline_reason || 'unknown',
+      edfaTransId: trans_id || null,
+    });
+    console.log(`❌ Payment ${order_id} failed: ${req.body.decline_reason || 'unknown'}`);
   }
 
   res.status(200).send('OK');
 });
 
 // EdfaPay 3DS Callback
-app.all('/api/edfa/callback-3ds/:id', (req, res) => {
-  const payment = payments.get(req.params.id);
+app.all('/api/edfa/callback-3ds/:id', async (req, res) => {
+  const doc = await paymentsCol.doc(req.params.id).get();
   const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 
-  if (!payment) {
+  if (!doc.exists) {
     return res.redirect(`${baseUrl}/pay/invalid`);
   }
-  res.redirect(`${baseUrl}/pay/${payment.id}`);
+  res.redirect(`${baseUrl}/pay/${doc.data().id}`);
 });
 
 // Serve payment page (always show intermediate page, no auto-redirect)
@@ -637,10 +674,16 @@ app.get('/pay/:id', (req, res) => {
 // ============================================================
 // Start server
 // ============================================================
-app.listen(PORT, '0.0.0.0', () => {
-  const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-  console.log(`\n🚀 الخادم يعمل على: ${url}`);
-  console.log(`🔐 تسجيل الدخول: ${url}/login`);
-  console.log(`👤 المدير: ${ADMIN_EMAIL}`);
-  console.log(`\n⚙️  تأكد من ضبط إعدادات SMTP في ملف .env\n`);
+seedAdmin().then(() => {
+  app.listen(PORT, '0.0.0.0', () => {
+    const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    console.log(`\n🚀 الخادم يعمل على: ${url}`);
+    console.log(`🔐 تسجيل الدخول: ${url}/login`);
+    console.log(`👤 المدير: ${ADMIN_EMAIL}`);
+    console.log(`🔥 Firebase Firestore متصل`);
+    console.log(`\n⚙️  تأكد من ضبط إعدادات SMTP في ملف .env\n`);
+  });
+}).catch(err => {
+  console.error('❌ خطأ في التشغيل:', err.message);
+  process.exit(1);
 });
