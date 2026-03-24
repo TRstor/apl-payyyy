@@ -139,12 +139,25 @@
         <h3>📋 آخر المعاملات</h3>
         <div class="table-responsive">
           <table>
-            <thead><tr><th>المنتج</th><th>العميل</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th></tr></thead>
+            <thead><tr><th>المنتج</th><th>العميل</th><th>البريد</th><th>الجوال</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th></tr></thead>
             <tbody id="txBody"></tbody>
           </table>
         </div>
         <div class="empty" id="txEmpty" style="display:none;">لا توجد معاملات بعد</div>
       </div>
+    </div>
+
+    <!-- My Customers -->
+    <div class="section">
+      <h3>👥 عملائي</h3>
+      <div style="margin-bottom:12px;font-size:13px;color:rgba(255,255,255,0.5);">إجمالي العملاء: <span id="myCustCount" style="color:#667eea;font-weight:700;">0</span></div>
+      <div class="table-responsive">
+        <table>
+          <thead><tr><th>الاسم</th><th>البريد الإلكتروني</th><th>الجوال</th><th>عدد المعاملات</th><th>إجمالي المدفوع</th><th>آخر معاملة</th></tr></thead>
+          <tbody id="myCustBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="myCustEmpty" style="display:none;">لا يوجد عملاء بعد</div>
     </div>
   </div>
 
@@ -185,10 +198,46 @@
           document.getElementById('txEmpty').style.display = 'none';
           txBody.innerHTML = data.payments.map(p => `<tr>
             <td>${esc(p.productName)}</td>
-            <td>${esc(p.customerName)}</td>
+            <td style="font-weight:600">${esc(p.customerName || '—')}</td>
+            <td dir="ltr" style="text-align:right;font-size:13px;color:rgba(255,255,255,0.7)">${esc(p.customerEmail || '—')}</td>
+            <td dir="ltr" style="text-align:right;font-size:13px;color:rgba(255,255,255,0.7)">${esc(p.customerPhone || '—')}</td>
             <td style="font-weight:600;color:#667eea">${Number(p.price).toFixed(2)}</td>
             <td>${statusBadge(p.status)}</td>
-            <td style="font-size:11px;color:rgba(255,255,255,0.4)">${new Date(p.createdAt).toLocaleString('ar-SA')}</td>
+            <td style="font-size:11px;color:rgba(255,255,255,0.4);white-space:nowrap">${new Date(p.createdAt).toLocaleString('ar-SA')}</td>
+          </tr>`).join('');
+        }
+
+        // Build my customers list
+        const custMap = {};
+        data.payments.forEach(p => {
+          const email = (p.customerEmail || '').toLowerCase();
+          if (!email) return;
+          if (!custMap[email]) {
+            custMap[email] = { name: p.customerName || '—', email: p.customerEmail || '—', phone: p.customerPhone || '—', count: 0, totalPaid: 0, lastDate: p.createdAt };
+          }
+          custMap[email].count++;
+          if (p.status === 'paid') custMap[email].totalPaid += p.price;
+          if (p.createdAt > custMap[email].lastDate) {
+            custMap[email].lastDate = p.createdAt;
+            custMap[email].name = p.customerName || custMap[email].name;
+            custMap[email].phone = p.customerPhone || custMap[email].phone;
+          }
+        });
+        const customers = Object.values(custMap).sort((a, b) => b.lastDate.localeCompare(a.lastDate));
+        const myCustBody = document.getElementById('myCustBody');
+        document.getElementById('myCustCount').textContent = customers.length;
+        if (customers.length === 0) {
+          myCustBody.innerHTML = '';
+          document.getElementById('myCustEmpty').style.display = '';
+        } else {
+          document.getElementById('myCustEmpty').style.display = 'none';
+          myCustBody.innerHTML = customers.map(c => `<tr>
+            <td style="font-weight:600">${esc(c.name)}</td>
+            <td dir="ltr" style="text-align:right">${esc(c.email)}</td>
+            <td dir="ltr" style="text-align:right">${esc(c.phone)}</td>
+            <td style="text-align:center">${c.count}</td>
+            <td style="font-weight:600;color:#2ecc71">${c.totalPaid.toFixed(2)} ر.س</td>
+            <td style="font-size:12px;color:rgba(255,255,255,0.5);white-space:nowrap">${new Date(c.lastDate).toLocaleString('ar-SA')}</td>
           </tr>`).join('');
         }
       } catch (e) { console.error(e); }

@@ -89,21 +89,43 @@
     <!-- Tabs -->
     <div class="tabs">
       <div class="tab active" onclick="showTab('transactions')">المعاملات</div>
+      <div class="tab" onclick="showTab('customers')">العملاء</div>
       <div class="tab" onclick="showTab('merchants')">التجار</div>
     </div>
 
     <!-- Transactions -->
     <div class="section" id="transactionsSection">
       <h3>📋 جميع المعاملات</h3>
+      <div style="margin-bottom:16px;">
+        <input type="text" id="txSearch" placeholder="🔍 بحث بالاسم أو البريد أو المنتج..." style="width:100%;padding:10px 16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:14px;outline:none;" oninput="filterTransactions()">
+      </div>
       <div class="table-responsive">
         <table>
           <thead>
-            <tr><th>التاريخ</th><th>التاجر</th><th>العميل</th><th>المنتج</th><th>المبلغ</th><th>الحالة</th></tr>
+            <tr><th>التاريخ</th><th>التاجر</th><th>العميل</th><th>البريد</th><th>الجوال</th><th>المنتج</th><th>المبلغ</th><th>الحالة</th></tr>
           </thead>
           <tbody id="txBody"></tbody>
         </table>
       </div>
       <div class="empty" id="txEmpty" style="display:none;">لا توجد معاملات</div>
+    </div>
+
+    <!-- Customers -->
+    <div class="section" id="customersSection" style="display:none;">
+      <h3>👥 العملاء</h3>
+      <div style="margin-bottom:16px;">
+        <input type="text" id="custSearch" placeholder="🔍 بحث بالاسم أو البريد أو الجوال..." style="width:100%;padding:10px 16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:14px;outline:none;" oninput="filterCustomers()">
+      </div>
+      <div style="margin-bottom:12px;font-size:13px;color:rgba(255,255,255,0.5);">إجمالي العملاء: <span id="custCount" style="color:#667eea;font-weight:700;">0</span></div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr><th>الاسم</th><th>البريد الإلكتروني</th><th>الجوال</th><th>عدد المعاملات</th><th>إجمالي المدفوع</th><th>آخر معاملة</th></tr>
+          </thead>
+          <tbody id="custBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="custEmpty" style="display:none;">لا يوجد عملاء</div>
     </div>
 
     <!-- Merchants -->
@@ -160,8 +182,10 @@
     function authHeaders() { return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }; }
 
     function showTab(tab) {
-      document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (tab === 'transactions' && i === 0) || (tab === 'merchants' && i === 1)));
+      const tabs = ['transactions', 'customers', 'merchants'];
+      document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', tabs[i] === tab));
       document.getElementById('transactionsSection').style.display = tab === 'transactions' ? '' : 'none';
+      document.getElementById('customersSection').style.display = tab === 'customers' ? '' : 'none';
       document.getElementById('merchantsSection').style.display = tab === 'merchants' ? '' : 'none';
     }
 
@@ -178,6 +202,9 @@
 
     function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
+    let allPayments = [];
+    let allCustomers = [];
+
     async function loadData() {
       try {
         const [txRes, mRes] = await Promise.all([
@@ -186,6 +213,7 @@
         ]);
         const payments = await txRes.json();
         const merchants = await mRes.json();
+        allPayments = payments;
 
         // Stats
         const paid = payments.filter(p => p.status === 'paid');
@@ -195,22 +223,34 @@
         document.getElementById('pendingTx').textContent = pending.length;
         document.getElementById('totalMerchants').textContent = merchants.length;
 
-        // Transactions
-        const txBody = document.getElementById('txBody');
-        if (payments.length === 0) {
-          txBody.innerHTML = '';
-          document.getElementById('txEmpty').style.display = '';
-        } else {
-          document.getElementById('txEmpty').style.display = 'none';
-          txBody.innerHTML = payments.map(p => `<tr>
-            <td>${new Date(p.createdAt).toLocaleString('ar-SA')}</td>
-            <td>${esc(p.merchantName || '—')}</td>
-            <td>${esc(p.customerName)}<br><small style="color:rgba(255,255,255,0.4)">${esc(p.customerEmail)}</small></td>
-            <td>${esc(p.productName)}</td>
-            <td style="font-weight:600;color:#667eea">${Number(p.price).toFixed(2)}</td>
-            <td>${statusBadge(p.status)}</td>
-          </tr>`).join('');
-        }
+        // Transactions table
+        renderTransactions(payments);
+
+        // Build customers list (unique by email)
+        const custMap = {};
+        payments.forEach(p => {
+          const email = (p.customerEmail || '').toLowerCase();
+          if (!email) return;
+          if (!custMap[email]) {
+            custMap[email] = {
+              name: p.customerName || '—',
+              email: p.customerEmail || '—',
+              phone: p.customerPhone || '—',
+              count: 0,
+              totalPaid: 0,
+              lastDate: p.createdAt,
+            };
+          }
+          custMap[email].count++;
+          if (p.status === 'paid') custMap[email].totalPaid += p.price;
+          if (p.createdAt > custMap[email].lastDate) {
+            custMap[email].lastDate = p.createdAt;
+            custMap[email].name = p.customerName || custMap[email].name;
+            custMap[email].phone = p.customerPhone || custMap[email].phone;
+          }
+        });
+        allCustomers = Object.values(custMap).sort((a, b) => b.lastDate.localeCompare(a.lastDate));
+        renderCustomers(allCustomers);
 
         // Merchants
         const mBody = document.getElementById('merchantsBody');
@@ -229,6 +269,68 @@
           </tr>`).join('');
         }
       } catch (e) { console.error(e); }
+    }
+
+    function renderTransactions(payments) {
+      const txBody = document.getElementById('txBody');
+      if (payments.length === 0) {
+        txBody.innerHTML = '';
+        document.getElementById('txEmpty').style.display = '';
+      } else {
+        document.getElementById('txEmpty').style.display = 'none';
+        txBody.innerHTML = payments.map(p => `<tr>
+          <td style="white-space:nowrap">${new Date(p.createdAt).toLocaleString('ar-SA')}</td>
+          <td>${esc(p.merchantName || '—')}</td>
+          <td style="font-weight:600">${esc(p.customerName || '—')}</td>
+          <td dir="ltr" style="text-align:right;font-size:13px;color:rgba(255,255,255,0.7)">${esc(p.customerEmail || '—')}</td>
+          <td dir="ltr" style="text-align:right;font-size:13px;color:rgba(255,255,255,0.7)">${esc(p.customerPhone || '—')}</td>
+          <td>${esc(p.productName)}</td>
+          <td style="font-weight:600;color:#667eea">${Number(p.price).toFixed(2)}</td>
+          <td>${statusBadge(p.status)}</td>
+        </tr>`).join('');
+      }
+    }
+
+    function renderCustomers(customers) {
+      const custBody = document.getElementById('custBody');
+      document.getElementById('custCount').textContent = customers.length;
+      if (customers.length === 0) {
+        custBody.innerHTML = '';
+        document.getElementById('custEmpty').style.display = '';
+      } else {
+        document.getElementById('custEmpty').style.display = 'none';
+        custBody.innerHTML = customers.map(c => `<tr>
+          <td style="font-weight:600">${esc(c.name)}</td>
+          <td dir="ltr" style="text-align:right">${esc(c.email)}</td>
+          <td dir="ltr" style="text-align:right">${esc(c.phone)}</td>
+          <td style="text-align:center">${c.count}</td>
+          <td style="font-weight:600;color:#2ecc71">${c.totalPaid.toFixed(2)} ر.س</td>
+          <td style="white-space:nowrap;font-size:12px;color:rgba(255,255,255,0.5)">${new Date(c.lastDate).toLocaleString('ar-SA')}</td>
+        </tr>`).join('');
+      }
+    }
+
+    function filterTransactions() {
+      const q = document.getElementById('txSearch').value.trim().toLowerCase();
+      if (!q) return renderTransactions(allPayments);
+      const filtered = allPayments.filter(p =>
+        (p.customerName || '').toLowerCase().includes(q) ||
+        (p.customerEmail || '').toLowerCase().includes(q) ||
+        (p.productName || '').toLowerCase().includes(q) ||
+        (p.merchantName || '').toLowerCase().includes(q)
+      );
+      renderTransactions(filtered);
+    }
+
+    function filterCustomers() {
+      const q = document.getElementById('custSearch').value.trim().toLowerCase();
+      if (!q) return renderCustomers(allCustomers);
+      const filtered = allCustomers.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        c.phone.toLowerCase().includes(q)
+      );
+      renderCustomers(filtered);
     }
 
     document.getElementById('addMerchantForm').addEventListener('submit', async (e) => {
