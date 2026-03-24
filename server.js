@@ -455,36 +455,36 @@ function buildPaymentEmailHtml(customerName, customerEmail, productName, price, 
   <title>طلب دفع</title>
 </head>
 <body style="margin:0; padding:0; background-color:#f0f2f5; font-family:'Segoe UI',Tahoma,Arial,sans-serif; direction:rtl; -webkit-text-size-adjust:100%;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f2f5; padding:30px 10px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f2f5; padding:20px 8px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:500px; background-color:#ffffff; border-radius:20px; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px; background-color:#ffffff; border-radius:20px; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.08);">
 
           <!-- Header -->
           <tr>
-            <td style="background:linear-gradient(135deg,#6c5ce7,#a855f7); padding:40px 30px; text-align:center;">
-              <div style="font-size:40px; margin-bottom:12px;">💳</div>
-              <h1 style="margin:0; color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.3px;">طلب دفع جديد</h1>
-              <p style="margin:10px 0 0; color:rgba(255,255,255,0.85); font-size:14px;">تم إنشاء طلب دفع خاص بك</p>
+            <td style="background:linear-gradient(135deg,#6c5ce7,#a855f7); padding:30px 20px; text-align:center;">
+              <div style="font-size:36px; margin-bottom:10px;">💳</div>
+              <h1 style="margin:0; color:#ffffff; font-size:20px; font-weight:700; letter-spacing:-0.3px;">طلب دفع جديد</h1>
+              <p style="margin:8px 0 0; color:rgba(255,255,255,0.85); font-size:13px;">تم إنشاء طلب دفع خاص بك</p>
             </td>
           </tr>
 
           <!-- Greeting -->
           <tr>
-            <td style="padding:30px 30px 10px;">
-              <p style="margin:0; font-size:18px; color:#1a1a2e; font-weight:600;">مرحباً ${safeName} 👋</p>
-              <p style="margin:10px 0 0; font-size:14px; color:#64748b; line-height:1.7;">لديك طلب دفع جديد، راجع التفاصيل أدناه ثم اضغط على الزر لإتمام الدفع.</p>
+            <td style="padding:24px 20px 8px;">
+              <p style="margin:0; font-size:16px; color:#1a1a2e; font-weight:600;">مرحباً ${safeName} 👋</p>
+              <p style="margin:8px 0 0; font-size:13px; color:#64748b; line-height:1.7;">لديك طلب دفع جديد، راجع التفاصيل أدناه ثم اضغط على الزر لإتمام الدفع.</p>
             </td>
           </tr>
 
           <!-- Amount Card -->
           <tr>
-            <td style="padding:20px 30px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#6c5ce7,#a855f7); border-radius:16px; overflow:hidden;">
+            <td style="padding:16px 20px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#6c5ce7,#a855f7); border-radius:14px; overflow:hidden;">
                 <tr>
-                  <td style="padding:28px; text-align:center;">
-                    <p style="margin:0 0 6px; color:rgba(255,255,255,0.8); font-size:13px;">المبلغ المطلوب</p>
-                    <p style="margin:0; color:#ffffff; font-size:36px; font-weight:800; letter-spacing:-1px;">${formattedPrice} <span style="font-size:18px; font-weight:600;">ر.س</span></p>
+                  <td style="padding:22px; text-align:center;">
+                    <p style="margin:0 0 4px; color:rgba(255,255,255,0.8); font-size:12px;">المبلغ المطلوب</p>
+                    <p style="margin:0; color:#ffffff; font-size:30px; font-weight:800; letter-spacing:-1px;">${formattedPrice} <span style="font-size:16px; font-weight:600;">ر.س</span></p>
                   </td>
                 </tr>
               </table>
@@ -493,7 +493,7 @@ function buildPaymentEmailHtml(customerName, customerEmail, productName, price, 
 
           <!-- Details -->
           <tr>
-            <td style="padding:0 30px 10px;">
+            <td style="padding:0 20px 10px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fc; border-radius:14px; border:1px solid #e8eaf0;">
                 <tr>
                   <td style="padding:20px 22px 8px;">
@@ -537,11 +537,11 @@ function buildPaymentEmailHtml(customerName, customerEmail, productName, price, 
 
           <!-- CTA Button -->
           <tr>
-            <td style="padding:16px 30px 8px;">
+            <td style="padding:14px 20px 6px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
-                    <a href="${paymentLink}" target="_blank" style="display:inline-block; width:100%; max-width:400px; background:linear-gradient(135deg,#6c5ce7,#a855f7); color:#ffffff; padding:18px 30px; border-radius:14px; text-decoration:none; font-size:17px; font-weight:700; text-align:center; box-sizing:border-box;">
+                    <a href="${paymentLink}" target="_blank" style="display:inline-block; width:100%; max-width:380px; background:linear-gradient(135deg,#6c5ce7,#a855f7); color:#ffffff; padding:16px 24px; border-radius:12px; text-decoration:none; font-size:16px; font-weight:700; text-align:center; box-sizing:border-box;">
                       ادفع الآن ←
                     </a>
                   </td>
@@ -552,7 +552,7 @@ function buildPaymentEmailHtml(customerName, customerEmail, productName, price, 
 
           <!-- Link fallback -->
           <tr>
-            <td style="padding:8px 30px 24px; text-align:center;">
+            <td style="padding:6px 20px 20px; text-align:center;">
               <p style="margin:0; font-size:12px; color:#94a3b8;">أو انسخ الرابط:</p>
               <a href="${paymentLink}" dir="ltr" style="font-size:12px; color:#6c5ce7; word-break:break-all; text-decoration:underline;">${paymentLink}</a>
             </td>
@@ -560,7 +560,7 @@ function buildPaymentEmailHtml(customerName, customerEmail, productName, price, 
 
           <!-- Footer -->
           <tr>
-            <td style="background:#f8f9fc; padding:20px 30px; text-align:center; border-top:1px solid #e8eaf0;">
+            <td style="background:#f8f9fc; padding:16px 20px; text-align:center; border-top:1px solid #e8eaf0;">
               <p style="margin:0; font-size:12px; color:#94a3b8;">🔒 ستتم عملية الدفع عبر بوابة دفع آمنة ومشفرة</p>
             </td>
           </tr>

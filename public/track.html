@@ -6,121 +6,93 @@
   <title>تتبع الدفع</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #0f0e17; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .container { width: 100%; max-width: 520px; padding: 24px; margin: 0 auto; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .container {
+      width: 100%; max-width: 440px; margin: 0 auto;
+      background: rgba(255,255,255,0.07); backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 24px; overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
 
-    /* Status header */
-    .status-header { text-align: center; padding: 40px 24px 32px; border-radius: 24px 24px 0 0; }
-    .status-header.pending { background: linear-gradient(135deg, #f39c12, #e67e22); }
-    .status-header.paid { background: linear-gradient(135deg, #2ecc71, #27ae60); }
-    .status-header.failed { background: linear-gradient(135deg, #e74c3c, #c0392b); }
-    .status-header.cancelled { background: linear-gradient(135deg, #95a5a6, #7f8c8d); }
-    .status-icon { font-size: 56px; margin-bottom: 16px; }
-    .status-text { font-size: 22px; font-weight: 700; color: #fff; }
-    .status-sub { font-size: 14px; color: rgba(255,255,255,0.8); margin-top: 8px; }
-
-    /* Loading dots */
-    .dots { display: inline-flex; gap: 6px; margin-top: 16px; }
-    .dots span { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.7); animation: dotPulse 1.4s infinite ease-in-out; }
+    /* Status */
+    .status-area { text-align: center; padding: 32px 20px 24px; position: relative; }
+    .status-area.pending { background: linear-gradient(135deg, rgba(243,156,18,0.15), rgba(230,126,34,0.08)); }
+    .status-area.paid { background: linear-gradient(135deg, rgba(46,204,113,0.15), rgba(39,174,96,0.08)); }
+    .status-area.failed { background: linear-gradient(135deg, rgba(231,76,60,0.15), rgba(192,57,43,0.08)); }
+    .status-area.cancelled { background: linear-gradient(135deg, rgba(149,165,166,0.15), rgba(127,140,141,0.08)); }
+    .status-ring { width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; font-size: 32px; }
+    .pending .status-ring { background: rgba(243,156,18,0.15); border: 2px solid #f39c12; }
+    .paid .status-ring { background: rgba(46,204,113,0.15); border: 2px solid #2ecc71; }
+    .failed .status-ring { background: rgba(231,76,60,0.15); border: 2px solid #e74c3c; }
+    .cancelled .status-ring { background: rgba(149,165,166,0.15); border: 2px solid #95a5a6; }
+    .status-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .status-desc { font-size: 13px; color: rgba(255,255,255,0.6); }
+    .dots { display: inline-flex; gap: 5px; margin-top: 12px; }
+    .dots span { width: 8px; height: 8px; border-radius: 50%; background: #f39c12; animation: pulse 1.4s infinite ease-in-out; }
     .dots span:nth-child(2) { animation-delay: 0.2s; }
     .dots span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes dotPulse { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
-
-    /* Card */
-    .card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 0 0 24px 24px; padding: 0; overflow: hidden; }
+    @keyframes pulse { 0%,80%,100% { transform: scale(0.5); opacity: 0.3; } 40% { transform: scale(1); opacity: 1; } }
+    @keyframes popIn { 0% { transform: scale(0.3); opacity: 0; } 60% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+    .pop { animation: popIn 0.4s ease-out; }
 
     /* Timer */
-    .timer-bar { background: rgba(255,255,255,0.04); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); }
-    .timer-bar .label { font-size: 13px; color: rgba(255,255,255,0.5); }
-    .timer-bar .time { font-size: 15px; font-weight: 600; color: #f39c12; font-variant-numeric: tabular-nums; direction: ltr; }
+    .timer { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .timer .lbl { font-size: 12px; color: rgba(255,255,255,0.4); }
+    .timer .val { font-size: 14px; font-weight: 700; color: #f39c12; direction: ltr; font-variant-numeric: tabular-nums; }
 
-    /* Details */
-    .details { padding: 24px; }
-    .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
-    .detail-row:last-child { border-bottom: none; }
-    .detail-row .key { font-size: 14px; color: rgba(255,255,255,0.5); display: flex; align-items: center; gap: 8px; }
-    .detail-row .val { font-size: 14px; color: #fff; font-weight: 600; max-width: 60%; text-align: left; word-break: break-word; }
-    .detail-row .val.price { font-size: 20px; color: #667eea; }
+    /* Info rows */
+    .info { padding: 16px 20px; }
+    .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .row:last-child { border-bottom: none; }
+    .row .k { font-size: 13px; color: rgba(255,255,255,0.45); }
+    .row .v { font-size: 13px; color: #fff; font-weight: 600; max-width: 55%; text-align: left; word-break: break-word; }
+    .row .v.big { font-size: 22px; color: #667eea; }
 
-    /* Link copy */
-    .link-section { padding: 0 24px 24px; }
-    .link-box { display: flex; gap: 8px; }
-    .link-input { flex: 1; padding: 10px 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: rgba(255,255,255,0.7); font-size: 12px; outline: none; direction: ltr; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .btn-copy { padding: 10px 18px; background: linear-gradient(135deg, #667eea, #764ba2); border: none; border-radius: 10px; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s; }
-    .btn-copy:hover { transform: translateY(-1px); }
-    .btn-copy.copied { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+    /* Link */
+    .link-area { padding: 0 20px 16px; }
+    .link-row { display: flex; gap: 8px; }
+    .link-input { flex: 1; padding: 9px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: rgba(255,255,255,0.6); font-size: 11px; outline: none; direction: ltr; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn-copy { padding: 9px 14px; background: #667eea; border: none; border-radius: 8px; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .btn-copy.ok { background: #2ecc71; }
 
-    /* Actions */
-    .actions { padding: 0 24px 28px; display: flex; flex-direction: column; gap: 10px; }
-    .btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-align: center; text-decoration: none; }
-    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
-    .btn-cancel { background: rgba(231,76,60,0.15); border: 1px solid rgba(231,76,60,0.3); color: #e74c3c; }
-    .btn-back { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); }
-
-    /* Success animation */
-    @keyframes successPop { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
-    .success-anim { animation: successPop 0.5s ease-out; }
-
+    /* Buttons */
+    .btns { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 8px; }
+    .b { display: block; width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.2s; }
+    .b:active { transform: scale(0.98); }
+    .b-cancel { background: rgba(231,76,60,0.12); border: 1px solid rgba(231,76,60,0.25); color: #e74c3c; }
+    .b-back { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
     .hidden { display: none; }
-
-    @media (max-width: 480px) { .container { padding: 12px; } .status-header { padding: 32px 16px 24px; } .details { padding: 16px; } .link-section, .actions { padding: 0 16px 20px; } }
   </style>
 </head>
 <body>
   <div class="container">
-    <!-- Status Header -->
-    <div class="status-header pending" id="statusHeader">
-      <div class="status-icon" id="statusIcon">⏳</div>
-      <div class="status-text" id="statusText">في انتظار الدفع...</div>
-      <div class="status-sub" id="statusSub">يرجى الانتظار حتى يكمل العميل عملية الدفع</div>
-      <div class="dots" id="loadingDots"><span></span><span></span><span></span></div>
+    <div class="status-area pending" id="statusArea">
+      <div class="status-ring" id="statusRing">⏳</div>
+      <div class="status-title" id="statusTitle">في انتظار الدفع</div>
+      <div class="status-desc" id="statusDesc">يرجى الانتظار حتى يكمل العميل الدفع</div>
+      <div class="dots" id="dots"><span></span><span></span><span></span></div>
     </div>
-
-    <!-- Card -->
-    <div class="card">
-      <!-- Timer -->
-      <div class="timer-bar" id="timerBar">
-        <span class="label">⏱️ الوقت المنقضي</span>
-        <span class="time" id="elapsed">00:00:00</span>
+    <div class="timer" id="timerBar">
+      <span class="lbl">⏱️ الوقت المنقضي</span>
+      <span class="val" id="elapsed">00:00:00</span>
+    </div>
+    <div class="info">
+      <div class="row"><span class="k">👤 العميل</span><span class="v" id="dName">—</span></div>
+      <div class="row"><span class="k">📧 البريد</span><span class="v" id="dEmail" dir="ltr">—</span></div>
+      <div class="row"><span class="k">🛍️ المنتج</span><span class="v" id="dProduct">—</span></div>
+      <div class="row"><span class="k">📅 التاريخ</span><span class="v" id="dDate">—</span></div>
+      <div class="row"><span class="k">💰 المبلغ</span><span class="v big" id="dPrice">—</span></div>
+    </div>
+    <div class="link-area">
+      <div class="link-row">
+        <input type="text" class="link-input" id="linkInput" readonly>
+        <button class="btn-copy" id="btnCopy" onclick="copyLink()">📋 نسخ</button>
       </div>
-
-      <!-- Details -->
-      <div class="details">
-        <div class="detail-row">
-          <span class="key">👤 العميل</span>
-          <span class="val" id="dName">—</span>
-        </div>
-        <div class="detail-row">
-          <span class="key">📧 البريد</span>
-          <span class="val" id="dEmail" dir="ltr">—</span>
-        </div>
-        <div class="detail-row">
-          <span class="key">🛍️ المنتج</span>
-          <span class="val" id="dProduct">—</span>
-        </div>
-        <div class="detail-row">
-          <span class="key">💰 المبلغ</span>
-          <span class="val price" id="dPrice">—</span>
-        </div>
-        <div class="detail-row">
-          <span class="key">📅 تاريخ الإنشاء</span>
-          <span class="val" id="dDate">—</span>
-        </div>
-      </div>
-
-      <!-- Link copy -->
-      <div class="link-section">
-        <div class="link-box">
-          <input type="text" class="link-input" id="linkInput" readonly>
-          <button class="btn-copy" id="btnCopy" onclick="copyLink()">📋 نسخ</button>
-        </div>
-      </div>
-
-      <!-- Actions -->
-      <div class="actions" id="actionButtons">
-        <button class="btn btn-cancel" id="btnCancel" onclick="cancelPayment()">❌ إلغاء الطلب</button>
-        <button class="btn btn-back" onclick="goBack()">🔙 العودة للوحة التحكم</button>
-      </div>
+    </div>
+    <div class="btns" id="actionBtns">
+      <button class="b b-cancel" id="btnCancel" onclick="cancelPayment()">❌ إلغاء الطلب</button>
+      <button class="b b-back" onclick="goBack()">🔙 العودة للوحة التحكم</button>
     </div>
   </div>
 
@@ -129,152 +101,100 @@
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || 'null');
     if (!token || !user) window.location.href = '/login';
-
     function authHeaders() { return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }; }
-    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
-    let createdAt = null;
-    let timerInterval = null;
-    let pollInterval = null;
-    let currentStatus = 'pending';
+    let createdAt = null, timerInt = null, pollInt = null, curStatus = 'pending';
 
-    // Timer
-    function startTimer() {
-      if (timerInterval) return;
-      timerInterval = setInterval(updateTimer, 1000);
-    }
+    function startTimer() { if (!timerInt) timerInt = setInterval(updateTimer, 1000); }
     function updateTimer() {
       if (!createdAt) return;
-      const diff = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
-      const h = String(Math.floor(diff / 3600)).padStart(2, '0');
-      const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
-      const s = String(diff % 60).padStart(2, '0');
+      const d = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
+      const h = String(Math.floor(d/3600)).padStart(2,'0');
+      const m = String(Math.floor((d%3600)/60)).padStart(2,'0');
+      const s = String(d%60).padStart(2,'0');
       document.getElementById('elapsed').textContent = `${h}:${m}:${s}`;
     }
 
-    // Status update
-    function updateStatus(status) {
-      currentStatus = status;
-      const header = document.getElementById('statusHeader');
-      const icon = document.getElementById('statusIcon');
-      const text = document.getElementById('statusText');
-      const sub = document.getElementById('statusSub');
-      const dots = document.getElementById('loadingDots');
-      const cancelBtn = document.getElementById('btnCancel');
-
-      header.className = 'status-header ' + status;
+    function setStatus(st) {
+      curStatus = st;
+      const area = document.getElementById('statusArea');
+      const ring = document.getElementById('statusRing');
+      const title = document.getElementById('statusTitle');
+      const desc = document.getElementById('statusDesc');
+      const dots = document.getElementById('dots');
+      const cancel = document.getElementById('btnCancel');
+      area.className = 'status-area ' + st;
       dots.classList.add('hidden');
-
-      if (status === 'pending') {
-        icon.textContent = '⏳';
-        text.textContent = 'في انتظار الدفع...';
-        sub.textContent = 'يرجى الانتظار حتى يكمل العميل عملية الدفع';
-        dots.classList.remove('hidden');
-        cancelBtn.classList.remove('hidden');
-      } else if (status === 'paid') {
-        icon.textContent = '✅';
-        icon.classList.add('success-anim');
-        text.textContent = 'تم الدفع بنجاح!';
-        sub.textContent = 'أكمل العميل عملية الدفع';
-        cancelBtn.classList.add('hidden');
-        document.getElementById('timerBar').querySelector('.time').style.color = '#2ecc71';
-        stopPolling();
-        // Play a subtle notification sound
-        try {
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.frequency.value = 800; gain.gain.value = 0.15;
-          osc.start(); osc.stop(ctx.currentTime + 0.15);
-          setTimeout(() => { const o2 = ctx.createOscillator(); const g2 = ctx.createGain(); o2.connect(g2); g2.connect(ctx.destination); o2.frequency.value = 1200; g2.gain.value = 0.15; o2.start(); o2.stop(ctx.currentTime + 0.2); }, 180);
-        } catch(e) {}
-      } else if (status === 'failed') {
-        icon.textContent = '❌';
-        text.textContent = 'فشلت عملية الدفع';
-        sub.textContent = 'لم تتم عملية الدفع — يمكنك إعادة المحاولة';
-        cancelBtn.classList.add('hidden');
-        stopPolling();
-      } else if (status === 'cancelled') {
-        icon.textContent = '🚫';
-        text.textContent = 'تم إلغاء الطلب';
-        sub.textContent = 'تم إلغاء رابط الدفع';
-        cancelBtn.classList.add('hidden');
-        stopPolling();
+      if (st === 'pending') {
+        ring.textContent = '⏳'; title.textContent = 'في انتظار الدفع';
+        desc.textContent = 'يرجى الانتظار حتى يكمل العميل الدفع';
+        dots.classList.remove('hidden'); cancel.classList.remove('hidden');
+      } else if (st === 'paid') {
+        ring.textContent = '✅'; ring.classList.add('pop');
+        title.textContent = 'تم الدفع بنجاح!'; desc.textContent = 'أكمل العميل عملية الدفع';
+        cancel.classList.add('hidden');
+        document.getElementById('elapsed').style.color = '#2ecc71';
+        stopPoll(); playSound();
+      } else if (st === 'failed') {
+        ring.textContent = '❌'; title.textContent = 'فشلت عملية الدفع';
+        desc.textContent = 'لم تتم عملية الدفع'; cancel.classList.add('hidden'); stopPoll();
+      } else if (st === 'cancelled') {
+        ring.textContent = '🚫'; title.textContent = 'تم إلغاء الطلب';
+        desc.textContent = 'تم إلغاء رابط الدفع'; cancel.classList.add('hidden'); stopPoll();
       }
     }
 
-    // Load payment data
-    async function loadPayment() {
+    function playSound() {
+      try {
+        const c = new (window.AudioContext || window.webkitAudioContext)();
+        const o = c.createOscillator(), g = c.createGain();
+        o.connect(g); g.connect(c.destination);
+        o.frequency.value = 800; g.gain.value = 0.12; o.start(); o.stop(c.currentTime + 0.12);
+        setTimeout(() => { const o2 = c.createOscillator(), g2 = c.createGain(); o2.connect(g2); g2.connect(c.destination); o2.frequency.value = 1200; g2.gain.value = 0.12; o2.start(); o2.stop(c.currentTime + 0.18); }, 150);
+      } catch(e) {}
+    }
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    async function load() {
       try {
         const res = await fetch(`/api/track/${paymentId}`, { headers: authHeaders() });
         if (res.status === 401) { window.location.href = '/login'; return; }
-        if (!res.ok) { document.getElementById('statusText').textContent = 'الدفعة غير موجودة'; return; }
-        const data = await res.json();
-
-        document.getElementById('dName').textContent = data.customerName || '—';
-        document.getElementById('dEmail').textContent = data.customerEmail || '—';
-        document.getElementById('dProduct').textContent = data.productName || '—';
-        document.getElementById('dPrice').textContent = Number(data.price).toFixed(2) + ' ر.س';
-        document.getElementById('dDate').textContent = new Date(data.createdAt).toLocaleString('ar-SA');
-
-        const baseUrl = window.location.origin;
-        document.getElementById('linkInput').value = `${baseUrl}/pay/${paymentId}`;
-
-        createdAt = data.createdAt;
-        updateTimer();
-        startTimer();
-
-        if (data.status !== currentStatus) {
-          updateStatus(data.status);
-        }
-      } catch (e) { console.error(e); }
+        if (!res.ok) { document.getElementById('statusTitle').textContent = 'غير موجود'; return; }
+        const d = await res.json();
+        document.getElementById('dName').textContent = d.customerName || '—';
+        document.getElementById('dEmail').textContent = d.customerEmail || '—';
+        document.getElementById('dProduct').textContent = d.productName || '—';
+        document.getElementById('dPrice').textContent = Number(d.price).toFixed(2) + ' ر.س';
+        document.getElementById('dDate').textContent = new Date(d.createdAt).toLocaleString('ar-SA');
+        document.getElementById('linkInput').value = location.origin + '/pay/' + paymentId;
+        createdAt = d.createdAt; updateTimer(); startTimer();
+        if (d.status !== curStatus) setStatus(d.status);
+      } catch(e) { console.error(e); }
     }
 
-    // Polling every 5 seconds
-    function startPolling() {
-      loadPayment();
-      pollInterval = setInterval(loadPayment, 5000);
-    }
-    function stopPolling() {
-      if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-    }
+    function startPoll() { load(); pollInt = setInterval(load, 5000); }
+    function stopPoll() { if (pollInt) { clearInterval(pollInt); pollInt = null; } }
 
-    // Copy link
     function copyLink() {
-      const input = document.getElementById('linkInput');
-      navigator.clipboard.writeText(input.value).then(() => {
-        const btn = document.getElementById('btnCopy');
-        btn.textContent = '✅ تم النسخ';
-        btn.classList.add('copied');
-        setTimeout(() => { btn.textContent = '📋 نسخ'; btn.classList.remove('copied'); }, 2000);
+      navigator.clipboard.writeText(document.getElementById('linkInput').value).then(() => {
+        const b = document.getElementById('btnCopy');
+        b.textContent = '✅ تم'; b.classList.add('ok');
+        setTimeout(() => { b.textContent = '📋 نسخ'; b.classList.remove('ok'); }, 2000);
       });
     }
 
-    // Cancel payment
     async function cancelPayment() {
-      if (!confirm('هل تريد إلغاء هذا الطلب؟ لن يتمكن العميل من الدفع.')) return;
+      if (!confirm('هل تريد إلغاء هذا الطلب؟')) return;
       try {
-        const res = await fetch(`/api/payment/${paymentId}/cancel`, {
-          method: 'POST',
-          headers: authHeaders(),
-        });
-        if (res.ok) {
-          updateStatus('cancelled');
-        } else {
-          const d = await res.json();
-          alert(d.error || 'خطأ');
-        }
-      } catch (e) { alert('خطأ في الاتصال'); }
+        const r = await fetch(`/api/payment/${paymentId}/cancel`, { method: 'POST', headers: authHeaders() });
+        if (r.ok) setStatus('cancelled');
+        else { const d = await r.json(); alert(d.error || 'خطأ'); }
+      } catch(e) { alert('خطأ في الاتصال'); }
     }
 
-    // Go back
-    function goBack() {
-      if (user.role === 'admin') window.location.href = '/admin';
-      else window.location.href = '/merchant';
-    }
-
-    startPolling();
+    function goBack() { window.location.href = user.role === 'admin' ? '/admin' : '/merchant'; }
+    startPoll();
   </script>
 </body>
 </html>

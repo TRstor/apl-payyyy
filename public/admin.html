@@ -52,8 +52,38 @@
     .modal-actions { display: flex; gap: 12px; margin-top: 24px; }
     .modal-actions .btn { flex: 1; padding: 12px; }
     .empty { text-align: center; padding: 40px; color: rgba(255,255,255,0.3); }
-    .table-responsive { overflow-x: auto; }
-    @media (max-width: 768px) { .main { padding: 16px; } .navbar { padding: 12px 16px; } }
+    .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* Mobile responsive */
+    @media (max-width: 600px) {
+      .navbar { padding: 10px 14px; }
+      .navbar h2 { font-size: 15px; }
+      .navbar .user-info { gap: 8px; font-size: 12px; }
+      .btn-logout { padding: 6px 10px; font-size: 12px; }
+      .main { padding: 12px; }
+      .stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .stat-card { padding: 14px; border-radius: 12px; }
+      .stat-card .value { font-size: 22px; }
+      .stat-card .label { font-size: 12px; }
+      .tabs { gap: 6px; }
+      .tab { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
+      .section { padding: 14px; border-radius: 12px; margin-bottom: 14px; }
+      .section h3 { font-size: 15px; margin-bottom: 12px; }
+
+      /* Card layout on mobile */
+      table thead { display: none; }
+      table, table tbody, table tr, table td { display: block; width: 100%; }
+      table tr { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; margin-bottom: 8px; position: relative; }
+      table td { padding: 4px 0; border: none; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+      table td::before { content: attr(data-label); color: rgba(255,255,255,0.4); font-size: 11px; font-weight: 500; min-width: 70px; }
+
+      .modal { padding: 24px 18px; border-radius: 16px; margin: 12px; max-width: calc(100vw - 24px); }
+      .form-group input { padding: 10px 12px; font-size: 14px; }
+      .modal-actions .btn { padding: 10px; font-size: 13px; }
+
+      .btn { padding: 6px 14px; font-size: 13px; border-radius: 8px; }
+      .btn-primary { padding: 10px 16px; }
+    }
   </style>
 </head>
 <body>
@@ -260,12 +290,12 @@
         } else {
           document.getElementById('merchantsEmpty').style.display = 'none';
           mBody.innerHTML = merchants.map(m => `<tr>
-            <td>${esc(m.name)}</td>
-            <td dir="ltr" style="text-align:right">${esc(m.email)}</td>
-            <td style="font-weight:600;color:#2ecc71">${Number(m.walletBalance).toFixed(2)} ر.س</td>
-            <td>${m.paymentsCount || 0}</td>
-            <td>${new Date(m.createdAt).toLocaleDateString('ar-SA')}</td>
-            <td><button class="btn btn-danger" onclick="deleteMerchant('${m.id}')" style="padding:4px 12px;font-size:12px;">حذف</button></td>
+            <td data-label="الاسم">${esc(m.name)}</td>
+            <td data-label="البريد" dir="ltr" style="text-align:right">${esc(m.email)}</td>
+            <td data-label="الرصيد" style="font-weight:600;color:#2ecc71">${Number(m.walletBalance).toFixed(2)} ر.س</td>
+            <td data-label="المعاملات">${m.paymentsCount || 0}</td>
+            <td data-label="المنشأ">${new Date(m.createdAt).toLocaleDateString('ar-SA')}</td>
+            <td data-label="إجراءات"><button class="btn btn-danger" onclick="deleteMerchant('${m.id}')" style="padding:4px 12px;font-size:12px;">حذف</button></td>
           </tr>`).join('');
         }
       } catch (e) { console.error(e); }
@@ -279,14 +309,14 @@
       } else {
         document.getElementById('txEmpty').style.display = 'none';
         txBody.innerHTML = payments.map(p => `<tr>
-          <td style="white-space:nowrap">${new Date(p.createdAt).toLocaleString('ar-SA')}</td>
-          <td>${esc(p.merchantName || '—')}</td>
-          <td style="font-weight:600">${esc(p.customerName || '—')}</td>
-          <td dir="ltr" style="text-align:right;font-size:13px;color:rgba(255,255,255,0.7)">${esc(p.customerEmail || '—')}</td>
-          <td dir="ltr" style="text-align:right;font-size:13px;color:rgba(255,255,255,0.7)">${esc(p.customerPhone || '—')}</td>
-          <td>${esc(p.productName)}</td>
-          <td style="font-weight:600;color:#667eea">${Number(p.price).toFixed(2)}</td>
-          <td>${statusBadge(p.status)}</td>
+          <td data-label="التاريخ" style="white-space:nowrap">${new Date(p.createdAt).toLocaleString('ar-SA')}</td>
+          <td data-label="التاجر">${esc(p.merchantName || '—')}</td>
+          <td data-label="العميل" style="font-weight:600">${esc(p.customerName || '—')}</td>
+          <td data-label="البريد" dir="ltr" style="text-align:right;font-size:13px;color:rgba(255,255,255,0.7)">${esc(p.customerEmail || '—')}</td>
+          <td data-label="الجوال" dir="ltr" style="text-align:right;font-size:13px;color:rgba(255,255,255,0.7)">${esc(p.customerPhone || '—')}</td>
+          <td data-label="المنتج">${esc(p.productName)}</td>
+          <td data-label="المبلغ" style="font-weight:600;color:#667eea">${Number(p.price).toFixed(2)}</td>
+          <td data-label="الحالة">${statusBadge(p.status)}</td>
         </tr>`).join('');
       }
     }
@@ -300,12 +330,12 @@
       } else {
         document.getElementById('custEmpty').style.display = 'none';
         custBody.innerHTML = customers.map(c => `<tr>
-          <td style="font-weight:600">${esc(c.name)}</td>
-          <td dir="ltr" style="text-align:right">${esc(c.email)}</td>
-          <td dir="ltr" style="text-align:right">${esc(c.phone)}</td>
-          <td style="text-align:center">${c.count}</td>
-          <td style="font-weight:600;color:#2ecc71">${c.totalPaid.toFixed(2)} ر.س</td>
-          <td style="white-space:nowrap;font-size:12px;color:rgba(255,255,255,0.5)">${new Date(c.lastDate).toLocaleString('ar-SA')}</td>
+          <td data-label="الاسم" style="font-weight:600">${esc(c.name)}</td>
+          <td data-label="البريد" dir="ltr" style="text-align:right">${esc(c.email)}</td>
+          <td data-label="الجوال" dir="ltr" style="text-align:right">${esc(c.phone)}</td>
+          <td data-label="المعاملات" style="text-align:center">${c.count}</td>
+          <td data-label="المدفوع" style="font-weight:600;color:#2ecc71">${c.totalPaid.toFixed(2)} ر.س</td>
+          <td data-label="آخر معاملة" style="white-space:nowrap;font-size:12px;color:rgba(255,255,255,0.5)">${new Date(c.lastDate).toLocaleString('ar-SA')}</td>
         </tr>`).join('');
       }
     }
