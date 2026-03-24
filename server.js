@@ -25,6 +25,7 @@ admin.initializeApp({
 const db = admin.firestore();
 
 const app = express();
+app.set('trust proxy', 1); // Render uses reverse proxy
 const PORT = process.env.PORT || 3000;
 
 // Firestore collections
