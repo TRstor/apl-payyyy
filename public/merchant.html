@@ -268,6 +268,11 @@
         const data = await res.json();
 
         if (res.ok) {
+          // Redirect to tracking page
+          if (data.paymentId) {
+            window.location.href = '/track/' + data.paymentId;
+            return;
+          }
           let msg = '✅ تم إرسال رابط الدفع بنجاح إلى ' + body.customerEmail;
           if (data.emailWarning) msg += ' ⚠️ ' + data.emailWarning;
           alert.className = 'alert success';

@@ -219,6 +219,14 @@
       <p class="sub">هذا الرابط غير صالح أو منتهي الصلاحية</p>
     </div>
 
+    <!-- ====== Cancelled ====== -->
+    <div id="stateCancelled" class="state">
+      <div class="header-icon err">🚫</div>
+      <h1>تم إلغاء الطلب</h1>
+      <span class="status-badge badge-failed">ملغي</span>
+      <p class="sub">تم إلغاء رابط الدفع من قبل التاجر</p>
+    </div>
+
   </div>
 
   <script>
@@ -284,6 +292,11 @@
           return;
         }
 
+        if (paymentData.status === 'cancelled') {
+          show('stateCancelled');
+          return;
+        }
+
         // Pending
         fillDetails('p', paymentData);
         show('statePending');
@@ -337,6 +350,9 @@
             fillDetails('f', paymentData);
             showFailReason(paymentData.failReason);
             show('stateFailed');
+          } else if (data.status === 'cancelled') {
+            paymentData = data;
+            show('stateCancelled');
           }
         } catch(e) {}
       }, 5000);

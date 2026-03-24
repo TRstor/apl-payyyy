@@ -929,6 +929,57 @@ app.get('/pay/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'pay.html'));
 });
 
+// Serve tracking page (for merchant/admin after creating payment)
+app.get('/track/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'track.html'));
+});
+
+// Track API — full details for authorized merchant/admin
+app.get('/api/track/:id', requireAuth(), async (req, res) => {
+  const doc = await paymentsCol.doc(req.params.id).get();
+  if (!doc.exists) {
+    return res.status(404).json({ error: 'الدفعة غير موجودة' });
+  }
+  const payment = doc.data();
+  // Only the owning merchant or admin can see full details
+  if (req.user.role !== 'admin' && payment.merchantId !== req.user.id) {
+    return res.status(403).json({ error: 'ليس لديك صلاحية' });
+  }
+  res.json({
+    id: payment.id,
+    customerName: payment.customerName,
+    customerEmail: payment.customerEmail,
+    customerPhone: payment.customerPhone || '',
+    productName: payment.productName,
+    price: payment.price,
+    status: payment.status,
+    createdAt: payment.createdAt,
+    paidAt: payment.paidAt || null,
+  });
+});
+
+// Cancel payment — merchant/admin can cancel pending payments
+app.post('/api/payment/:id/cancel', requireAuth(), async (req, res) => {
+  const doc = await paymentsCol.doc(req.params.id).get();
+  if (!doc.exists) {
+    return res.status(404).json({ error: 'الدفعة غير موجودة' });
+  }
+  const payment = doc.data();
+  if (req.user.role !== 'admin' && payment.merchantId !== req.user.id) {
+    return res.status(403).json({ error: 'ليس لديك صلاحية' });
+  }
+  if (payment.status !== 'pending') {
+    return res.status(400).json({ error: 'لا يمكن إلغاء دفعة غير معلقة' });
+  }
+  await paymentsCol.doc(req.params.id).update({
+    status: 'cancelled',
+    cancelledAt: new Date().toISOString(),
+    cancelledBy: req.user.id,
+  });
+  await auditLog('payment_cancelled', req.user.id, { paymentId: req.params.id.slice(0, 8) });
+  res.json({ success: true });
+});
+
 // ============================================================
 // Start server
 // ============================================================
