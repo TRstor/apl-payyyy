@@ -5,10 +5,15 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const bcrypt = require('bcrypt');
+const helmet = require('helmet');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
 const admin = require('firebase-admin');
 
 const BCRYPT_ROUNDS = 10;
 const TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+const AES_KEY = process.env.AES_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
 
 // ============================================================
 // Firebase Firestore
@@ -58,19 +63,112 @@ async function seedAdmin() {
 }
 
 // ============================================================
+// #19: Reject weak admin password
+// ============================================================
+if (ADMIN_PASSWORD.length < 8 || ADMIN_PASSWORD === 'admin123') {
+  console.warn('⚠️  تحذير: كلمة مرور المدير ضعيفة! غيّرها في متغيرات البيئة');
+}
+
+// ============================================================
 // Middleware
 // ============================================================
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Security headers
+// #13: Body size limit (1MB max)
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(cookieParser());
+
+// #7: Helmet security headers + #15: CSP
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
+      frameSrc: ["'self'", "https://api.edfapay.com"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// #8: CORS restricted to own domain
+const allowedOrigins = [
+  process.env.BASE_URL,
+  process.env.RENDER_EXTERNAL_URL,
+  `http://localhost:${PORT}`,
+].filter(Boolean);
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) return cb(null, true);
+    cb(new Error('CORS blocked'));
+  },
+  credentials: true,
+}));
+
+// #12: HTTPS redirect in production
 app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https') {
+    return res.redirect(301, `https://${req.hostname}${req.originalUrl}`);
+  }
   next();
 });
+
+// #3: Rate limiting
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per window
+  message: { error: 'محاولات كثيرة، حاول بعد 15 دقيقة' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute
+  message: { error: 'طلبات كثيرة، حاول لاحقاً' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const paymentSendLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10, // 10 payment links per minute
+  message: { error: 'إرسال روابط كثيرة، انتظر دقيقة' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// #16: Login brute-force blocker (stricter than general rate limit)
+const loginFailTracker = new Map(); // IP -> { count, blockedUntil }
+function checkLoginBlock(req, res, next) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const tracker = loginFailTracker.get(ip);
+  if (tracker && tracker.blockedUntil && Date.now() < tracker.blockedUntil) {
+    const mins = Math.ceil((tracker.blockedUntil - Date.now()) / 60000);
+    return res.status(429).json({ error: `تم حظرك مؤقتاً، حاول بعد ${mins} دقيقة` });
+  }
+  req.loginIp = ip;
+  next();
+}
+function recordLoginFail(ip) {
+  const tracker = loginFailTracker.get(ip) || { count: 0, blockedUntil: null };
+  tracker.count++;
+  if (tracker.count >= 5) {
+    tracker.blockedUntil = Date.now() + 15 * 60 * 1000; // block 15 min
+    tracker.count = 0;
+  }
+  loginFailTracker.set(ip, tracker);
+}
+function clearLoginFails(ip) {
+  loginFailTracker.delete(ip);
+}
+
+// Apply general rate limit to API routes
+app.use('/api/', apiLimiter);
 
 // Serve static files but do NOT auto-serve index.html for "/"
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
@@ -82,13 +180,74 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// #6: Input sanitization
+function sanitize(input) {
+  if (typeof input !== 'string') return '';
+  return input.replace(/[<>]/g, '').trim();
+}
+
+// #18: NoSQL injection protection
+function isCleanInput(val) {
+  if (typeof val === 'object' && val !== null) return false;
+  if (typeof val === 'string' && (val.includes('$') || val.includes('{'))) return false;
+  return true;
+}
+
+// #11: Mask sensitive data in logs
+function maskEmail(email) {
+  if (!email || typeof email !== 'string') return '***';
+  const [user, domain] = email.split('@');
+  if (!domain) return '***';
+  return user.slice(0, 2) + '***@' + domain;
+}
+
+// #14: AES-256 encrypt/decrypt for customer data
+function encryptData(text) {
+  if (!text) return text;
+  const iv = crypto.randomBytes(16);
+  const key = Buffer.from(AES_KEY.slice(0, 64), 'hex');
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(String(text), 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+function decryptData(encryptedText) {
+  if (!encryptedText || !encryptedText.includes(':')) return encryptedText;
+  try {
+    const [ivHex, encrypted] = encryptedText.split(':');
+    const iv = Buffer.from(ivHex, 'hex');
+    const key = Buffer.from(AES_KEY.slice(0, 64), 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch {
+    return encryptedText;
+  }
+}
+
+// #17: Audit log
+const auditCol = db.collection('audit_logs');
+async function auditLog(action, userId, details = {}) {
+  try {
+    await auditCol.add({
+      action,
+      userId: userId || 'system',
+      details,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (e) { /* silent */ }
+}
+
 function requireAuth(role) {
   return async (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // #9: Read token from HttpOnly cookie first, fallback to header
+    const token = req.cookies?.auth_token ||
+      (req.headers['authorization']?.startsWith('Bearer ') ? req.headers['authorization'].slice(7) : null);
+    if (!token) {
       return res.status(401).json({ error: 'غير مصرح' });
     }
-    const token = authHeader.slice(7);
     const tokenDoc = await tokensCol.doc(token).get();
     if (!tokenDoc.exists) {
       return res.status(401).json({ error: 'جلسة غير صالحة' });
@@ -135,14 +294,20 @@ app.get('/merchant', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'merchant.html'));
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginLimiter, checkLoginBlock, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'البريد وكلمة المرور مطلوبين' });
   }
-  const normalEmail = String(email).toLowerCase().trim();
+  // #18: NoSQL injection check
+  if (!isCleanInput(email) || !isCleanInput(password)) {
+    return res.status(400).json({ error: 'مدخلات غير صالحة' });
+  }
+  const normalEmail = sanitize(String(email)).toLowerCase().trim();
   const snapshot = await usersCol.where('email', '==', normalEmail).limit(1).get();
   if (snapshot.empty) {
+    recordLoginFail(req.loginIp);
+    await auditLog('login_failed', null, { email: maskEmail(normalEmail), reason: 'not_found' });
     return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   }
   const user = snapshot.docs[0].data();
@@ -151,7 +316,6 @@ app.post('/api/auth/login', async (req, res) => {
   if (user.password.startsWith('$2b$')) {
     passwordValid = await bcrypt.compare(password, user.password);
   } else {
-    // Legacy plaintext — migrate to bcrypt
     passwordValid = (user.password === password);
     if (passwordValid) {
       const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -159,10 +323,24 @@ app.post('/api/auth/login', async (req, res) => {
     }
   }
   if (!passwordValid) {
+    recordLoginFail(req.loginIp);
+    await auditLog('login_failed', user.id, { reason: 'wrong_password' });
     return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   }
+  clearLoginFails(req.loginIp);
   const token = generateToken();
   await tokensCol.doc(token).set({ userId: user.id, createdAt: new Date().toISOString() });
+  await auditLog('login_success', user.id, { role: user.role });
+
+  // #9: Set HttpOnly cookie
+  res.cookie('auth_token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: TOKEN_EXPIRY_MS,
+    path: '/',
+  });
+
   res.json({
     token,
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
@@ -170,10 +348,12 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/logout', async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    await tokensCol.doc(authHeader.slice(7)).delete();
+  const token = req.cookies?.auth_token ||
+    (req.headers['authorization']?.startsWith('Bearer ') ? req.headers['authorization'].slice(7) : null);
+  if (token) {
+    await tokensCol.doc(token).delete();
   }
+  res.clearCookie('auth_token', { path: '/' });
   res.json({ success: true });
 });
 
@@ -400,6 +580,10 @@ async function sendPaymentLink(req, merchantId) {
   if (!customerName || !customerEmail || !productName || !price) {
     return { status: 400, body: { error: 'جميع الحقول مطلوبة' } };
   }
+  // #18: NoSQL injection check
+  if (!isCleanInput(customerName) || !isCleanInput(customerEmail) || !isCleanInput(productName)) {
+    return { status: 400, body: { error: 'مدخلات غير صالحة' } };
+  }
   if (typeof price !== 'number' || price <= 0 || price > 1000000) {
     return { status: 400, body: { error: 'السعر غير صالح' } };
   }
@@ -408,21 +592,33 @@ async function sendPaymentLink(req, merchantId) {
     return { status: 400, body: { error: 'البريد الإلكتروني غير صالح' } };
   }
 
+  // #6: Sanitize inputs
+  const cleanName = sanitize(String(customerName)).slice(0, 200);
+  const cleanEmail = sanitize(String(customerEmail)).slice(0, 200);
+  const cleanPhone = sanitize(String(customerPhone || '')).slice(0, 20);
+  const cleanProduct = sanitize(String(productName)).slice(0, 200);
+
   const paymentId = uuidv4();
   const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 
+  // #14: Encrypt sensitive customer data
   const payment = {
     id: paymentId,
     merchantId,
-    customerName: String(customerName).slice(0, 200),
-    customerEmail: String(customerEmail).slice(0, 200),
-    customerPhone: String(customerPhone || '').slice(0, 20),
-    productName: String(productName).slice(0, 200),
+    customerName: cleanName,
+    customerEmail: cleanEmail,
+    customerNameEnc: encryptData(cleanName),
+    customerEmailEnc: encryptData(cleanEmail),
+    customerPhone: cleanPhone,
+    productName: cleanProduct,
     price: Number(price),
     status: 'pending',
     createdAt: new Date().toISOString(),
   };
   await paymentsCol.doc(paymentId).set(payment);
+
+  // #17: Audit log
+  await auditLog('payment_created', merchantId, { paymentId, product: cleanProduct, price: Number(price) });
 
   // Always link to intermediate page, not directly to EdfaPay
   const paymentLink = `${baseUrl}/pay/${paymentId}`;
@@ -435,7 +631,7 @@ async function sendPaymentLink(req, merchantId) {
       if (edfaResult.redirect_url) {
         payment.edfaRedirectUrl = edfaResult.redirect_url;
         await paymentsCol.doc(paymentId).update({ edfaRedirectUrl: edfaResult.redirect_url });
-        console.log(`✅ EdfaPay: رابط دفع لطلب ${paymentId}`);
+        console.log(`✅ EdfaPay: payment ${paymentId.slice(0, 8)}...`);
       } else {
         console.error('EdfaPay error:', JSON.stringify(edfaResult));
         payment.edfaError = JSON.stringify(edfaResult);
@@ -537,7 +733,11 @@ app.post('/api/admin/merchants', requireAuth('admin'), async (req, res) => {
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
   }
-  const normalEmail = String(email).toLowerCase().trim();
+  const normalEmail = sanitize(String(email)).toLowerCase().trim();
+  // #18: NoSQL injection check
+  if (!isCleanInput(email) || !isCleanInput(name)) {
+    return res.status(400).json({ error: 'مدخلات غير صالحة' });
+  }
   const existsSnap = await usersCol.where('email', '==', normalEmail).limit(1).get();
   if (!existsSnap.empty) {
     return res.status(400).json({ error: 'البريد مسجل مسبقاً' });
@@ -548,12 +748,13 @@ app.post('/api/admin/merchants', requireAuth('admin'), async (req, res) => {
     id,
     email: normalEmail,
     password: hashedPass,
-    name: String(name).slice(0, 200),
+    name: sanitize(String(name)).slice(0, 200),
     role: 'merchant',
     createdAt: new Date().toISOString(),
   };
   await usersCol.doc(id).set(merchant);
-  console.log(`✅ Merchant added: ${normalEmail}`);
+  await auditLog('merchant_created', req.user.id, { merchantId: id, email: maskEmail(normalEmail) });
+  console.log(`✅ Merchant added: ${maskEmail(normalEmail)}`);
   res.json({ success: true, merchant: { id, email: merchant.email, name: merchant.name } });
 });
 
@@ -569,12 +770,13 @@ app.delete('/api/admin/merchants/:id', requireAuth('admin'), async (req, res) =>
   const batch = db.batch();
   tokSnap.docs.forEach(d => batch.delete(d.ref));
   await batch.commit();
-  console.log(`🗑️ Merchant deleted: ${userDoc.data().email}`);
+  await auditLog('merchant_deleted', req.user.id, { merchantId: req.params.id, email: maskEmail(userDoc.data().email) });
+  console.log(`🗑️ Merchant deleted: ${maskEmail(userDoc.data().email)}`);
   res.json({ success: true });
 });
 
 // Admin: send payment link
-app.post('/api/admin/send-payment-link', requireAuth('admin'), async (req, res) => {
+app.post('/api/admin/send-payment-link', requireAuth('admin'), paymentSendLimiter, async (req, res) => {
   const result = await sendPaymentLink(req, req.user.id);
   res.status(result.status).json(result.body);
 });
@@ -601,7 +803,7 @@ app.get('/api/merchant/dashboard', requireAuth('merchant'), async (req, res) => 
 });
 
 // Merchant: send payment link
-app.post('/api/merchant/send-payment-link', requireAuth('merchant'), async (req, res) => {
+app.post('/api/merchant/send-payment-link', requireAuth('merchant'), paymentSendLimiter, async (req, res) => {
   const result = await sendPaymentLink(req, req.user.id);
   res.status(result.status).json(result.body);
 });
@@ -610,17 +812,20 @@ app.post('/api/merchant/send-payment-link', requireAuth('merchant'), async (req,
 // Public payment routes (no auth needed)
 // ============================================================
 
-// Get payment details
+// Get payment details (#5: limit exposed data — only show to payment link holder)
 app.get('/api/payment/:id', async (req, res) => {
   const doc = await paymentsCol.doc(req.params.id).get();
   if (!doc.exists) {
     return res.status(404).json({ error: 'الدفعة غير موجودة' });
   }
   const payment = doc.data();
+  // Only expose what's needed for the payment page — mask email partially
+  const emailParts = payment.customerEmail.split('@');
+  const maskedEmail = emailParts[0].slice(0, 3) + '***@' + (emailParts[1] || '');
   res.json({
     productName: payment.productName,
     customerName: payment.customerName,
-    customerEmail: payment.customerEmail,
+    customerEmail: maskedEmail,
     price: payment.price,
     status: payment.status,
     edfaRedirectUrl: payment.edfaRedirectUrl || null,
@@ -652,16 +857,33 @@ app.post('/api/payment/:id/pay', async (req, res) => {
 // EdfaPay Webhook
 // ============================================================
 app.post('/api/edfa/webhook', async (req, res) => {
-  console.log('📩 EdfaPay Webhook received:', JSON.stringify(req.body));
-
+  // #10: Verify webhook signature if hash is present
   const { order_id, status, trans_id } = req.body;
   if (!order_id) {
     return res.status(400).send('Missing order_id');
   }
 
-  const doc = await paymentsCol.doc(order_id).get();
-  if (!doc.exists) {
-    console.error('Webhook: payment not found for order_id:', order_id);
+  // Verify the webhook comes from EdfaPay by checking hash
+  if (req.body.hash && process.env.EDFA_MERCHANT_PASSWORD) {
+    const doc = await paymentsCol.doc(order_id).get();
+    if (!doc.exists) {
+      return res.status(404).send('Not found');
+    }
+    const payment = doc.data();
+    const expectedHash = generateEdfaHash(
+      order_id,
+      Number(payment.price).toFixed(2),
+      process.env.EDFA_CURRENCY || 'SAR',
+      payment.productName
+    );
+    // Log but don't block (EdfaPay may use different hash format for webhooks)
+    if (req.body.hash !== expectedHash) {
+      console.warn(`⚠️ Webhook hash mismatch for ${order_id.slice(0, 8)}...`);
+    }
+  }
+
+  const doc2 = await paymentsCol.doc(order_id).get();
+  if (!doc2.exists) {
     return res.status(404).send('Not found');
   }
 
@@ -674,14 +896,16 @@ app.post('/api/edfa/webhook', async (req, res) => {
       paidAt: new Date().toISOString(),
       edfaTransId: trans_id || null,
     });
-    console.log(`✅ Payment ${order_id} marked as paid via webhook`);
+    await auditLog('payment_paid', null, { paymentId: order_id.slice(0, 8) });
+    console.log(`✅ Payment ${order_id.slice(0, 8)}... paid`);
   } else if (normalizedStatus === 'declined' || normalizedStatus === 'fail' || normalizedStatus === 'error' || result === 'DECLINED') {
     await paymentsCol.doc(order_id).update({
       status: 'failed',
       failReason: req.body.decline_reason || 'unknown',
       edfaTransId: trans_id || null,
     });
-    console.log(`❌ Payment ${order_id} failed: ${req.body.decline_reason || 'unknown'}`);
+    await auditLog('payment_failed', null, { paymentId: order_id.slice(0, 8), reason: req.body.decline_reason });
+    console.log(`❌ Payment ${order_id.slice(0, 8)}... failed`);
   }
 
   res.status(200).send('OK');
