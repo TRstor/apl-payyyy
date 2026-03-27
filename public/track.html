@@ -60,9 +60,9 @@
     .btns { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 8px; }
     .b { display: block; width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.2s; }
     .b:active { transform: scale(0.98); }
-    .b-cancel { background: rgba(231,76,60,0.12); border: 1px solid rgba(231,76,60,0.25); color: #e74c3c; }
     .b-back { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
     .hidden { display: none; }
+    .countdown-warn { color: #e74c3c !important; }
   </style>
 </head>
 <body>
@@ -74,8 +74,8 @@
       <div class="dots" id="dots"><span></span><span></span><span></span></div>
     </div>
     <div class="timer" id="timerBar">
-      <span class="lbl">⏱️ الوقت المنقضي</span>
-      <span class="val" id="elapsed">00:00:00</span>
+      <span class="lbl">⏳ المهلة المتبقية</span>
+      <span class="val" id="countdown">05:00</span>
     </div>
     <div class="info">
       <div class="row"><span class="k">👤 العميل</span><span class="v" id="dName">—</span></div>
@@ -91,7 +91,6 @@
       </div>
     </div>
     <div class="btns" id="actionBtns">
-      <button class="b b-cancel" id="btnCancel" onclick="cancelPayment()">❌ إلغاء الطلب</button>
       <button class="b b-back" onclick="goBack()">🔙 العودة للوحة التحكم</button>
     </div>
   </div>
@@ -103,16 +102,21 @@
     if (!token || !user) window.location.href = '/login';
     function authHeaders() { return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }; }
 
-    let createdAt = null, timerInt = null, pollInt = null, curStatus = 'pending';
+    let expiresAt = null, timerInt = null, pollInt = null, curStatus = 'pending';
 
-    function startTimer() { if (!timerInt) timerInt = setInterval(updateTimer, 1000); }
-    function updateTimer() {
-      if (!createdAt) return;
-      const d = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
-      const h = String(Math.floor(d/3600)).padStart(2,'0');
-      const m = String(Math.floor((d%3600)/60)).padStart(2,'0');
-      const s = String(d%60).padStart(2,'0');
-      document.getElementById('elapsed').textContent = `${h}:${m}:${s}`;
+    function startTimer() { if (!timerInt) timerInt = setInterval(updateCountdown, 1000); }
+    function updateCountdown() {
+      if (!expiresAt) return;
+      const el = document.getElementById('countdown');
+      const remaining = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
+      const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+      const s = String(remaining % 60).padStart(2, '0');
+      el.textContent = `${m}:${s}`;
+      if (remaining <= 60) el.classList.add('countdown-warn');
+      if (remaining <= 0 && curStatus === 'pending') {
+        setStatus('cancelled');
+        load();
+      }
     }
 
     function setStatus(st) {
@@ -122,25 +126,26 @@
       const title = document.getElementById('statusTitle');
       const desc = document.getElementById('statusDesc');
       const dots = document.getElementById('dots');
-      const cancel = document.getElementById('btnCancel');
       area.className = 'status-area ' + st;
       dots.classList.add('hidden');
       if (st === 'pending') {
         ring.textContent = '⏳'; title.textContent = 'في انتظار الدفع';
         desc.textContent = 'يرجى الانتظار حتى يكمل العميل الدفع';
-        dots.classList.remove('hidden'); cancel.classList.remove('hidden');
+        dots.classList.remove('hidden');
       } else if (st === 'paid') {
         ring.textContent = '✅'; ring.classList.add('pop');
         title.textContent = 'تم الدفع بنجاح!'; desc.textContent = 'أكمل العميل عملية الدفع';
-        cancel.classList.add('hidden');
-        document.getElementById('elapsed').style.color = '#2ecc71';
+        document.getElementById('countdown').style.color = '#2ecc71';
+        document.getElementById('countdown').textContent = 'تم ✓';
         stopPoll(); playSound();
       } else if (st === 'failed') {
         ring.textContent = '❌'; title.textContent = 'فشلت عملية الدفع';
-        desc.textContent = 'لم تتم عملية الدفع'; cancel.classList.add('hidden'); stopPoll();
+        desc.textContent = 'لم تتم عملية الدفع'; stopPoll();
       } else if (st === 'cancelled') {
-        ring.textContent = '🚫'; title.textContent = 'تم إلغاء الطلب';
-        desc.textContent = 'تم إلغاء رابط الدفع'; cancel.classList.add('hidden'); stopPoll();
+        ring.textContent = '🚫'; title.textContent = 'انتهت صلاحية الرابط';
+        desc.textContent = 'انتهت مهلة الدفع (5 دقائق)'; stopPoll();
+        document.getElementById('countdown').textContent = '00:00';
+        document.getElementById('countdown').classList.add('countdown-warn');
       }
     }
 
@@ -168,7 +173,7 @@
         document.getElementById('dPrice').textContent = Number(d.price).toFixed(2) + ' ر.س';
         document.getElementById('dDate').textContent = new Date(d.createdAt).toLocaleString('ar-SA');
         document.getElementById('linkInput').value = location.origin + '/pay/' + paymentId;
-        createdAt = d.createdAt; updateTimer(); startTimer();
+        expiresAt = d.expiresAt; updateCountdown(); startTimer();
         if (d.status !== curStatus) setStatus(d.status);
       } catch(e) { console.error(e); }
     }
@@ -182,15 +187,6 @@
         b.textContent = '✅ تم'; b.classList.add('ok');
         setTimeout(() => { b.textContent = '📋 نسخ'; b.classList.remove('ok'); }, 2000);
       });
-    }
-
-    async function cancelPayment() {
-      if (!confirm('هل تريد إلغاء هذا الطلب؟')) return;
-      try {
-        const r = await fetch(`/api/payment/${paymentId}/cancel`, { method: 'POST', headers: authHeaders() });
-        if (r.ok) setStatus('cancelled');
-        else { const d = await r.json(); alert(d.error || 'خطأ'); }
-      } catch(e) { alert('خطأ في الاتصال'); }
     }
 
     function goBack() { window.location.href = user.role === 'admin' ? '/admin' : '/merchant'; }

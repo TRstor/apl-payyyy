@@ -13,6 +13,7 @@ const admin = require('firebase-admin');
 
 const BCRYPT_ROUNDS = 10;
 const TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+const PAYMENT_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const AES_KEY = process.env.AES_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
 
 // ============================================================
@@ -828,6 +829,17 @@ app.post('/api/merchant/send-payment-link', requireAuth('merchant'), paymentSend
 // Public payment routes (no auth needed)
 // ============================================================
 
+// Auto-expire pending payments after 5 minutes
+async function autoExpireIfNeeded(docRef, payment) {
+  if (payment.status === 'pending' && payment.createdAt) {
+    const elapsed = Date.now() - new Date(payment.createdAt).getTime();
+    if (elapsed >= PAYMENT_EXPIRY_MS) {
+      await docRef.update({ status: 'cancelled', cancelledAt: new Date().toISOString(), cancelledBy: 'auto-expiry' });
+      payment.status = 'cancelled';
+    }
+  }
+}
+
 // Get payment details (#5: limit exposed data — only show to payment link holder)
 app.get('/api/payment/:id', async (req, res) => {
   const doc = await paymentsCol.doc(req.params.id).get();
@@ -835,6 +847,7 @@ app.get('/api/payment/:id', async (req, res) => {
     return res.status(404).json({ error: 'الدفعة غير موجودة' });
   }
   const payment = doc.data();
+  await autoExpireIfNeeded(paymentsCol.doc(req.params.id), payment);
   // Only expose what's needed for the payment page — mask email partially
   const emailParts = payment.customerEmail.split('@');
   const maskedEmail = emailParts[0].slice(0, 3) + '***@' + (emailParts[1] || '');
@@ -967,6 +980,7 @@ app.get('/api/track/:id', requireAuth(), async (req, res) => {
   if (req.user.role !== 'admin' && payment.merchantId !== req.user.id) {
     return res.status(403).json({ error: 'ليس لديك صلاحية' });
   }
+  await autoExpireIfNeeded(paymentsCol.doc(req.params.id), payment);
   res.json({
     id: payment.id,
     customerName: payment.customerName,
@@ -977,30 +991,11 @@ app.get('/api/track/:id', requireAuth(), async (req, res) => {
     status: payment.status,
     createdAt: payment.createdAt,
     paidAt: payment.paidAt || null,
+    expiresAt: new Date(new Date(payment.createdAt).getTime() + PAYMENT_EXPIRY_MS).toISOString(),
   });
 });
 
-// Cancel payment — merchant/admin can cancel pending payments
-app.post('/api/payment/:id/cancel', requireAuth(), async (req, res) => {
-  const doc = await paymentsCol.doc(req.params.id).get();
-  if (!doc.exists) {
-    return res.status(404).json({ error: 'الدفعة غير موجودة' });
-  }
-  const payment = doc.data();
-  if (req.user.role !== 'admin' && payment.merchantId !== req.user.id) {
-    return res.status(403).json({ error: 'ليس لديك صلاحية' });
-  }
-  if (payment.status !== 'pending') {
-    return res.status(400).json({ error: 'لا يمكن إلغاء دفعة غير معلقة' });
-  }
-  await paymentsCol.doc(req.params.id).update({
-    status: 'cancelled',
-    cancelledAt: new Date().toISOString(),
-    cancelledBy: req.user.id,
-  });
-  await auditLog('payment_cancelled', req.user.id, { paymentId: req.params.id.slice(0, 8) });
-  res.json({ success: true });
-});
+// Cancel endpoint removed — payments auto-expire after 5 minutes
 
 // ============================================================
 // Start server
