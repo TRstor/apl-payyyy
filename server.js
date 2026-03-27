@@ -889,8 +889,15 @@ app.post('/api/edfa/webhook', async (req, res) => {
     return res.status(404).send('Not found');
   }
 
+  const currentPayment = doc2.data();
   const normalizedStatus = String(status || '').toLowerCase();
   const result = String(req.body.result || '').toUpperCase();
+
+  // Guard: never overwrite a final state (paid/cancelled)
+  if (currentPayment.status === 'paid' || currentPayment.status === 'cancelled') {
+    console.log(`⚠️ Webhook ignored for ${order_id.slice(0, 8)}... (already ${currentPayment.status})`);
+    return res.status(200).send('OK');
+  }
 
   if (normalizedStatus === 'settled' || normalizedStatus === 'success' || normalizedStatus === '3ds_success' || result === 'SUCCESS') {
     await paymentsCol.doc(order_id).update({
