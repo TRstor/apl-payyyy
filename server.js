@@ -440,10 +440,11 @@ async function initiateEdfaPayment(payment, payerIp) {
 }
 
 // Build payment email HTML
-function buildPaymentEmailHtml(customerName, customerEmail, productName, price, paymentLink) {
+function buildPaymentEmailHtml(customerName, customerEmail, productName, price, paymentLink, merchantName) {
   const safeName = escapeHtml(String(customerName));
   const safeEmail = escapeHtml(String(customerEmail));
   const safeProduct = escapeHtml(String(productName));
+  const safeMerchant = escapeHtml(String(merchantName || ''));
   const formattedPrice = Number(price).toFixed(2);
 
   return `<!DOCTYPE html>
@@ -503,6 +504,14 @@ function buildPaymentEmailHtml(customerName, customerEmail, productName, price, 
                 <tr>
                   <td style="padding:0 22px;">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      ${safeMerchant ? `<tr>
+                        <td style="padding:12px 0; border-bottom:1px solid #e8eaf0; width:35%;">
+                          <span style="color:#94a3b8; font-size:13px;">🏪 التاجر</span>
+                        </td>
+                        <td style="padding:12px 0; border-bottom:1px solid #e8eaf0; text-align:left;">
+                          <span style="color:#1e293b; font-size:14px; font-weight:600;">${safeMerchant}</span>
+                        </td>
+                      </tr>` : ''}
                       <tr>
                         <td style="padding:12px 0; border-bottom:1px solid #e8eaf0; width:35%;">
                           <span style="color:#94a3b8; font-size:13px;">👤 العميل</span>
@@ -603,10 +612,15 @@ async function sendPaymentLink(req, merchantId) {
   const paymentId = uuidv4();
   const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 
+  // Fetch merchant name to store with payment
+  const merchantDoc = await usersCol.doc(merchantId).get();
+  const merchantName = merchantDoc.exists ? merchantDoc.data().name : '';
+
   // #14: Encrypt sensitive customer data
   const payment = {
     id: paymentId,
     merchantId,
+    merchantName,
     customerName: cleanName,
     customerEmail: cleanEmail,
     customerNameEnc: encryptData(cleanName),
@@ -647,7 +661,7 @@ async function sendPaymentLink(req, merchantId) {
   // Send email
   try {
     const transporter = createTransporter();
-    const htmlEmail = buildPaymentEmailHtml(customerName, customerEmail, productName, price, paymentLink);
+    const htmlEmail = buildPaymentEmailHtml(customerName, customerEmail, productName, price, paymentLink, merchantName);
     const fromName = process.env.SMTP_FROM_NAME || '';
     const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
     const fromAddress = fromName ? `"${fromName}" <${fromEmail}>` : fromEmail;
@@ -828,6 +842,7 @@ app.get('/api/payment/:id', async (req, res) => {
     productName: payment.productName,
     customerName: payment.customerName,
     customerEmail: maskedEmail,
+    merchantName: payment.merchantName || '',
     price: payment.price,
     status: payment.status,
     edfaRedirectUrl: payment.edfaRedirectUrl || null,

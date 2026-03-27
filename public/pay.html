@@ -143,6 +143,10 @@
 
       <div class="info-card">
         <div class="info-row">
+          <span class="info-value" id="pMerchant"></span>
+          <span class="info-label">التاجر</span>
+        </div>
+        <div class="info-row">
           <span class="info-value" id="pProduct"></span>
           <span class="info-label">المنتج</span>
         </div>
@@ -175,6 +179,10 @@
 
       <div class="info-card">
         <div class="info-row">
+          <span class="info-value" id="sMerchant"></span>
+          <span class="info-label">التاجر</span>
+        </div>
+        <div class="info-row">
           <span class="info-value" id="sProduct"></span>
           <span class="info-label">المنتج</span>
         </div>
@@ -202,6 +210,10 @@
       <p id="failReasonText" style="color:#e74c3c; font-size:1.1rem; font-weight:600; margin-top:6px;"></p>
 
       <div class="info-card">
+        <div class="info-row">
+          <span class="info-value" id="fMerchant"></span>
+          <span class="info-label">التاجر</span>
+        </div>
         <div class="info-row">
           <span class="info-value" id="fProduct"></span>
           <span class="info-label">المنتج</span>
@@ -277,6 +289,7 @@
     function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
     function fillDetails(prefix, data) {
+      document.getElementById(prefix + 'Merchant').textContent = data.merchantName || '';
       document.getElementById(prefix + 'Product').textContent = data.productName;
       document.getElementById(prefix + 'Customer').textContent = data.customerName;
       document.getElementById(prefix + 'Email').textContent = data.customerEmail;
