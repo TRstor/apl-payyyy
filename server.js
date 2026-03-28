@@ -80,10 +80,17 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 
+// Debug: log every incoming request (method + path)
+app.use((req, res, next) => {
+  console.log(`🚨 [REQ] ${req.method} ${req.path}`);
+  next();
+});
+
 // ============================================================
 // EdfaPay Webhook & 3DS Callback (BEFORE CORS — external origins)
 // ============================================================
 app.post('/api/edfa/webhook', async (req, res) => {
+  console.log('✅ Webhook HIT — body:', JSON.stringify(req.body).slice(0, 200));
   const { order_id, status, trans_id } = req.body;
   if (!order_id) {
     return res.status(400).send('Missing order_id');
