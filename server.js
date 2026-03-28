@@ -774,8 +774,8 @@ async function sendPaymentLink(req, merchantId) {
 
 // Admin dashboard data
 app.get('/api/admin/dashboard', requireAuth('admin'), async (req, res) => {
-  const paymentsSnap = await paymentsCol.orderBy('createdAt', 'desc').get();
-  const allPayments = paymentsSnap.docs.map(d => d.data());
+  const paymentsSnap = await paymentsCol.get();
+  const allPayments = paymentsSnap.docs.map(d => d.data()).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   const totalRevenue = allPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.price, 0);
   const merchantsSnap = await usersCol.where('role', '==', 'merchant').get();
   res.json({
@@ -791,8 +791,8 @@ app.get('/api/admin/dashboard', requireAuth('admin'), async (req, res) => {
 
 // Admin: list payments
 app.get('/api/admin/payments', requireAuth('admin'), async (req, res) => {
-  const paymentsSnap = await paymentsCol.orderBy('createdAt', 'desc').get();
-  const allPayments = paymentsSnap.docs.map(d => d.data());
+  const paymentsSnap = await paymentsCol.get();
+  const allPayments = paymentsSnap.docs.map(d => d.data()).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   // Attach merchant name
   const enriched = [];
   for (const p of allPayments) {
@@ -883,19 +883,24 @@ app.post('/api/admin/send-payment-link', requireAuth('admin'), paymentSendLimite
 
 // Merchant dashboard data
 app.get('/api/merchant/dashboard', requireAuth('merchant'), async (req, res) => {
-  const myPaymentsSnap = await paymentsCol.where('merchantId', '==', req.user.id).orderBy('createdAt', 'desc').get();
-  const myPayments = myPaymentsSnap.docs.map(d => d.data());
+  try {
+    const myPaymentsSnap = await paymentsCol.where('merchantId', '==', req.user.id).get();
+    const myPayments = myPaymentsSnap.docs.map(d => d.data()).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
-  const walletBalance = myPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.price, 0);
+    const walletBalance = myPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.price, 0);
 
-  res.json({
-    walletBalance,
-    totalCount: myPayments.length,
-    paidCount: myPayments.filter(p => p.status === 'paid').length,
-    pendingCount: myPayments.filter(p => p.status === 'pending').length,
-    failedCount: myPayments.filter(p => p.status === 'failed').length,
-    payments: myPayments,
-  });
+    res.json({
+      walletBalance,
+      totalCount: myPayments.length,
+      paidCount: myPayments.filter(p => p.status === 'paid').length,
+      pendingCount: myPayments.filter(p => p.status === 'pending').length,
+      failedCount: myPayments.filter(p => p.status === 'failed').length,
+      payments: myPayments,
+    });
+  } catch (e) {
+    console.error('Merchant dashboard error:', e.message);
+    res.status(500).json({ error: 'خطأ في تحميل البيانات' });
+  }
 });
 
 // Merchant: send payment link
