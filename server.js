@@ -504,7 +504,8 @@ async function initiateEdfaPayment(payment, payerIp) {
   formData.append('payer_email', payment.customerEmail);
   formData.append('payer_phone', payment.customerPhone || '966500000000');
   formData.append('payer_ip', payerIp || '127.0.0.1');
-  formData.append('term_url_3ds', `${baseUrl}/api/edfa/callback-3ds/${orderId}`);
+  const callbackBase = process.env.CLOUDFLARE_WORKER_URL || baseUrl;
+  formData.append('term_url_3ds', `${callbackBase}/api/edfa/callback-3ds/${orderId}`);
   formData.append('auth', 'N');
   formData.append('recurring_init', 'N');
   formData.append('hash', hash);
