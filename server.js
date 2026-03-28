@@ -80,6 +80,78 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 
+// ============================================================
+// EdfaPay Webhook & 3DS Callback (BEFORE CORS — external origins)
+// ============================================================
+app.post('/api/edfa/webhook', async (req, res) => {
+  const { order_id, status, trans_id } = req.body;
+  if (!order_id) {
+    return res.status(400).send('Missing order_id');
+  }
+
+  // Verify the webhook comes from EdfaPay by checking hash
+  if (req.body.hash && process.env.EDFA_MERCHANT_PASSWORD) {
+    const doc = await paymentsCol.doc(order_id).get();
+    if (!doc.exists) {
+      return res.status(404).send('Not found');
+    }
+    const payment = doc.data();
+    const expectedHash = generateEdfaHash(
+      order_id,
+      Number(payment.price).toFixed(2),
+      process.env.EDFA_CURRENCY || 'SAR',
+      payment.productName
+    );
+    if (req.body.hash !== expectedHash) {
+      console.warn(`⚠️ Webhook hash mismatch for ${order_id.slice(0, 8)}...`);
+    }
+  }
+
+  const doc2 = await paymentsCol.doc(order_id).get();
+  if (!doc2.exists) {
+    return res.status(404).send('Not found');
+  }
+
+  const currentPayment = doc2.data();
+  const normalizedStatus = String(status || '').toLowerCase();
+  const result = String(req.body.result || '').toUpperCase();
+
+  // Guard: never overwrite a final state (paid/cancelled)
+  if (currentPayment.status === 'paid' || currentPayment.status === 'cancelled') {
+    console.log(`⚠️ Webhook ignored for ${order_id.slice(0, 8)}... (already ${currentPayment.status})`);
+    return res.status(200).send('OK');
+  }
+
+  if (normalizedStatus === 'settled' || normalizedStatus === 'success' || normalizedStatus === '3ds_success' || result === 'SUCCESS') {
+    await paymentsCol.doc(order_id).update({
+      status: 'paid',
+      paidAt: new Date().toISOString(),
+      edfaTransId: trans_id || null,
+    });
+    await auditLog('payment_paid', null, { paymentId: order_id.slice(0, 8) });
+    console.log(`✅ Payment ${order_id.slice(0, 8)}... paid`);
+  } else if (normalizedStatus === 'declined' || normalizedStatus === 'fail' || normalizedStatus === 'error' || result === 'DECLINED') {
+    await paymentsCol.doc(order_id).update({
+      status: 'failed',
+      failReason: req.body.decline_reason || 'unknown',
+      edfaTransId: trans_id || null,
+    });
+    await auditLog('payment_failed', null, { paymentId: order_id.slice(0, 8), reason: req.body.decline_reason });
+    console.log(`❌ Payment ${order_id.slice(0, 8)}... failed`);
+  }
+
+  res.status(200).send('OK');
+});
+
+app.all('/api/edfa/callback-3ds/:id', async (req, res) => {
+  const doc = await paymentsCol.doc(req.params.id).get();
+  const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  if (!doc.exists) {
+    return res.redirect(`${baseUrl}/pay/invalid`);
+  }
+  res.redirect(`${baseUrl}/pay/${doc.data().id}`);
+});
+
 // #7: Helmet security headers + #15: CSP
 app.use(helmet({
   contentSecurityPolicy: {
@@ -881,82 +953,6 @@ app.post('/api/payment/:id/pay', async (req, res) => {
     paidAt: new Date().toISOString(),
   });
   res.json({ success: true });
-});
-
-// ============================================================
-// EdfaPay Webhook
-// ============================================================
-app.post('/api/edfa/webhook', async (req, res) => {
-  // #10: Verify webhook signature if hash is present
-  const { order_id, status, trans_id } = req.body;
-  if (!order_id) {
-    return res.status(400).send('Missing order_id');
-  }
-
-  // Verify the webhook comes from EdfaPay by checking hash
-  if (req.body.hash && process.env.EDFA_MERCHANT_PASSWORD) {
-    const doc = await paymentsCol.doc(order_id).get();
-    if (!doc.exists) {
-      return res.status(404).send('Not found');
-    }
-    const payment = doc.data();
-    const expectedHash = generateEdfaHash(
-      order_id,
-      Number(payment.price).toFixed(2),
-      process.env.EDFA_CURRENCY || 'SAR',
-      payment.productName
-    );
-    // Log but don't block (EdfaPay may use different hash format for webhooks)
-    if (req.body.hash !== expectedHash) {
-      console.warn(`⚠️ Webhook hash mismatch for ${order_id.slice(0, 8)}...`);
-    }
-  }
-
-  const doc2 = await paymentsCol.doc(order_id).get();
-  if (!doc2.exists) {
-    return res.status(404).send('Not found');
-  }
-
-  const currentPayment = doc2.data();
-  const normalizedStatus = String(status || '').toLowerCase();
-  const result = String(req.body.result || '').toUpperCase();
-
-  // Guard: never overwrite a final state (paid/cancelled)
-  if (currentPayment.status === 'paid' || currentPayment.status === 'cancelled') {
-    console.log(`⚠️ Webhook ignored for ${order_id.slice(0, 8)}... (already ${currentPayment.status})`);
-    return res.status(200).send('OK');
-  }
-
-  if (normalizedStatus === 'settled' || normalizedStatus === 'success' || normalizedStatus === '3ds_success' || result === 'SUCCESS') {
-    await paymentsCol.doc(order_id).update({
-      status: 'paid',
-      paidAt: new Date().toISOString(),
-      edfaTransId: trans_id || null,
-    });
-    await auditLog('payment_paid', null, { paymentId: order_id.slice(0, 8) });
-    console.log(`✅ Payment ${order_id.slice(0, 8)}... paid`);
-  } else if (normalizedStatus === 'declined' || normalizedStatus === 'fail' || normalizedStatus === 'error' || result === 'DECLINED') {
-    await paymentsCol.doc(order_id).update({
-      status: 'failed',
-      failReason: req.body.decline_reason || 'unknown',
-      edfaTransId: trans_id || null,
-    });
-    await auditLog('payment_failed', null, { paymentId: order_id.slice(0, 8), reason: req.body.decline_reason });
-    console.log(`❌ Payment ${order_id.slice(0, 8)}... failed`);
-  }
-
-  res.status(200).send('OK');
-});
-
-// EdfaPay 3DS Callback
-app.all('/api/edfa/callback-3ds/:id', async (req, res) => {
-  const doc = await paymentsCol.doc(req.params.id).get();
-  const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-
-  if (!doc.exists) {
-    return res.redirect(`${baseUrl}/pay/invalid`);
-  }
-  res.redirect(`${baseUrl}/pay/${doc.data().id}`);
 });
 
 // Serve payment page (always show intermediate page, no auto-redirect)
