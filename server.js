@@ -78,6 +78,7 @@ if (ADMIN_PASSWORD.length < 8 || ADMIN_PASSWORD === 'admin123') {
 // #13: Body size limit (1MB max)
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.text({ limit: '1mb', type: 'text/*' }));
 app.use(cookieParser());
 
 // Debug: log every incoming request (method + path)
@@ -90,7 +91,23 @@ app.use((req, res, next) => {
 // EdfaPay Webhook & 3DS Callback (BEFORE CORS — external origins)
 // ============================================================
 app.post('/api/edfa/webhook', async (req, res) => {
-  const body = req.body || {};
+  let body = req.body || {};
+
+  // If body came as text/plain string, try to parse it
+  if (typeof body === 'string' && body.length > 0) {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      // Try form-urlencoded: key=value&key2=value2
+      const parsed = {};
+      body.split('&').forEach(pair => {
+        const [k, ...v] = pair.split('=');
+        if (k) parsed[decodeURIComponent(k)] = decodeURIComponent(v.join('='));
+      });
+      body = parsed;
+    }
+  }
+
   console.log('✅ Webhook HIT — body:', JSON.stringify(body).slice(0, 500));
   const { order_id, status, trans_id } = body;
   if (!order_id) {
