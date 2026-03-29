@@ -90,14 +90,16 @@ app.use((req, res, next) => {
 // EdfaPay Webhook & 3DS Callback (BEFORE CORS — external origins)
 // ============================================================
 app.post('/api/edfa/webhook', async (req, res) => {
-  console.log('✅ Webhook HIT — body:', JSON.stringify(req.body).slice(0, 200));
-  const { order_id, status, trans_id } = req.body;
+  const body = req.body || {};
+  console.log('✅ Webhook HIT — body:', JSON.stringify(body).slice(0, 500));
+  const { order_id, status, trans_id } = body;
   if (!order_id) {
+    console.log('⚠️ Webhook: Missing order_id. Content-Type:', req.headers['content-type'], 'Raw body keys:', Object.keys(body));
     return res.status(400).send('Missing order_id');
   }
 
   // Verify the webhook comes from EdfaPay by checking hash
-  if (req.body.hash && process.env.EDFA_MERCHANT_PASSWORD) {
+  if (body.hash && process.env.EDFA_MERCHANT_PASSWORD) {
     const doc = await paymentsCol.doc(order_id).get();
     if (!doc.exists) {
       return res.status(404).send('Not found');
@@ -109,7 +111,7 @@ app.post('/api/edfa/webhook', async (req, res) => {
       process.env.EDFA_CURRENCY || 'SAR',
       payment.productName
     );
-    if (req.body.hash !== expectedHash) {
+    if (body.hash !== expectedHash) {
       console.warn(`⚠️ Webhook hash mismatch for ${order_id.slice(0, 8)}...`);
     }
   }
@@ -121,7 +123,7 @@ app.post('/api/edfa/webhook', async (req, res) => {
 
   const currentPayment = doc2.data();
   const normalizedStatus = String(status || '').toLowerCase();
-  const result = String(req.body.result || '').toUpperCase();
+  const result = String(body.result || '').toUpperCase();
 
   // Guard: never overwrite a final state (paid/cancelled)
   if (currentPayment.status === 'paid' || currentPayment.status === 'cancelled') {
